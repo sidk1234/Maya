@@ -438,7 +438,7 @@ function HomeScreen({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Daily focus</p>
-          <h3 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100">Good morning, maya.</h3>
+          <h3 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100">Good morning, Maya.</h3>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Two sessions left to lock in your weekly goal.</p>
         </div>
         <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white/80 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
