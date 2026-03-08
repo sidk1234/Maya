@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f6f2;
+  --ink: #0f172a;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(94, 234, 212, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(167, 139, 250, 0.18), transparent 24%),
+    linear-gradient(180deg, #fbfbf8 0%, #f4f6fa 52%, #eef2f7 100%);
+  color: var(--ink);
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(125, 211, 252, 0.38);
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Fraunces", Georgia, serif;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hidden {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
