@@ -97,7 +97,7 @@ export function ConversationCoachDemo({
   const [typedMode, setTypedMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [theme, setTheme] = useState<ThemePreference>("Auto");
+  const [theme, setTheme] = useState<ThemePreference>("Light");
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
 
   const scenario = practiceScenarios[mode];
