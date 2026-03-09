@@ -39,12 +39,20 @@ import {
   generatedPersonaProfiles,
   onboardingSlides,
   personaActionOptions,
-  personaScopeOptions,
   personaSourceCatalog,
   practiceScenarios,
   scenarioModes
 } from "@/data/conversation-coach";
-import { AppScreen, PersonaAction, PersonaScope, PersonaSourceType, PracticeMode, SessionFeedback } from "@/lib/types";
+import {
+  AppScreen,
+  PersonaAction,
+  PersonaScope,
+  PersonaSource,
+  PersonaSourceConfidence,
+  PersonaSourceType,
+  PracticeMode,
+  SessionFeedback
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DemoProps = {
@@ -89,12 +97,6 @@ const personaScopeSurfaceMap: Record<PersonaScope, string> = {
   audience: "from-emerald-500/18 to-cyan-300/18"
 };
 
-const personaScopeIconMap: Record<PersonaScope, typeof UserRound> = {
-  privatePerson: UserRound,
-  publicFigure: WandSparkles,
-  audience: Presentation
-};
-
 const personaSourceIconMap: Record<PersonaSourceType, typeof MessageSquare> = {
   pastedText: MessageSquare,
   screenshot: ImageIcon,
@@ -116,6 +118,62 @@ const screenVariants = {
   animate: { opacity: 1, y: 0, scale: 1 },
   exit: { opacity: 0, y: -16, scale: 0.985 }
 };
+
+const fadeScreenVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 }
+};
+
+const modeFadeVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 }
+};
+
+const onboardingSlideVariants = {
+  initial: (direction: number) => ({
+    opacity: 0,
+    x: direction >= 0 ? 30 : -30
+  }),
+  animate: {
+    opacity: 1,
+    x: 0
+  },
+  exit: (direction: number) => ({
+    opacity: 0,
+    x: direction >= 0 ? -30 : 30
+  })
+};
+
+const onboardingPageVariants = {
+  initial: (direction: number) => ({
+    opacity: 0,
+    x: direction >= 0 ? 42 : -42
+  }),
+  animate: {
+    opacity: 1,
+    x: 0
+  },
+  exit: (direction: number) => ({
+    opacity: 0,
+    x: direction >= 0 ? -42 : 42
+  })
+};
+
+function getScreenMotionPreset(screen: AppScreen) {
+  if (screen === "home" || screen === "scenarios" || screen === "analytics" || screen === "profile") {
+    return {
+      variants: fadeScreenVariants,
+      transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const }
+    };
+  }
+
+  return {
+    variants: screenVariants,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] as const }
+  };
+}
 
 const weeklyPractice = [2, 4, 5, 3, 6, 7, 5];
 const skillTrend = [72, 76, 79, 84, 82, 89, 93];
@@ -179,7 +237,7 @@ const personaSourceSheetCopy: Record<
   screenshot: {
     title: "Upload screenshots",
     body: "Attach a message screenshot, story capture, or slide snippet so the persona keeps the visual context.",
-    fieldLabel: "Context note",
+    fieldLabel: "Context note (Optional)",
     placeholder: "Add any context Maya should keep in mind about this image...",
     attachmentLabel: "Screenshots",
     attachmentButton: "Add screenshot",
@@ -213,6 +271,108 @@ function getDefaultPersonaSources(scope: PersonaScope): PersonaSourceType[] {
   return ["pastedText", "screenshot", "publicUrl"];
 }
 
+function getPersonaScopeForSelection(mode: PracticeMode, selectedSources: PersonaSourceType[]): PersonaScope {
+  if (mode === "presentation") {
+    return "audience";
+  }
+
+  return selectedSources.includes("publicUrl") ? "publicFigure" : "privatePerson";
+}
+
+const fallbackPersonaSourceMap: Record<
+  PersonaSourceType,
+  Omit<PersonaSource, "type" | "label">
+> = {
+  pastedText: {
+    summary: "Pasted chats, notes, or excerpts added for direct tone and wording signal.",
+    status: "Parsed",
+    detail: "Used to anchor the persona in phrasing, pacing, and recurring topics from your own material."
+  },
+  screenshot: {
+    summary: "Screenshot attachment added for visual context and moment-specific cues.",
+    status: "Interpreted",
+    detail: "Used as supporting signal for context, references, and message framing."
+  },
+  chatExport: {
+    summary: "Longer conversation export attached for broader historical context.",
+    status: "Merged",
+    detail: "Used to improve consistency across longer patterns, habits, and recurring phrases."
+  },
+  publicUrl: {
+    summary: "Public web research added for interviews, posts, and public-facing writing.",
+    status: "Researched",
+    detail: "Used to sharpen the persona with publicly available language, priorities, and likely follow-up questions."
+  }
+};
+
+const fallbackPersonaSourceConfidenceMap: Record<
+  PersonaSourceType,
+  Omit<PersonaSourceConfidence, "type" | "label">
+> = {
+  pastedText: {
+    confidence: "High",
+    note: "Strong direct signal on tone, pacing, and question style."
+  },
+  screenshot: {
+    confidence: "Medium",
+    note: "Useful for visual context, references, and moment-specific cues."
+  },
+  chatExport: {
+    confidence: "High",
+    note: "Best source for consistency over time and broader interaction patterns."
+  },
+  publicUrl: {
+    confidence: "High",
+    note: "Strong signal on public language, priorities, and likely follow-up questions."
+  }
+};
+
+function getPersonaSourceLabel(type: PersonaSourceType) {
+  return personaSourceCatalog.find((source) => source.type === type)?.label ?? "Source";
+}
+
+function buildSelectedPersonaSources(
+  personaProfile: (typeof generatedPersonaProfiles)[PersonaScope],
+  selectedSourceTypes: PersonaSourceType[]
+): PersonaSource[] {
+  const profileSourceMap = new Map(personaProfile.sources.map((source) => [source.type, source]));
+
+  return selectedSourceTypes.map((type) => {
+    const profileSource = profileSourceMap.get(type);
+
+    if (profileSource) {
+      return profileSource;
+    }
+
+    return {
+      type,
+      label: getPersonaSourceLabel(type),
+      ...fallbackPersonaSourceMap[type]
+    };
+  });
+}
+
+function buildSelectedPersonaConfidence(
+  personaProfile: (typeof generatedPersonaProfiles)[PersonaScope],
+  selectedSourceTypes: PersonaSourceType[]
+): PersonaSourceConfidence[] {
+  const profileConfidenceMap = new Map(personaProfile.sourceConfidence.map((source) => [source.type, source]));
+
+  return selectedSourceTypes.map((type) => {
+    const profileConfidence = profileConfidenceMap.get(type);
+
+    if (profileConfidence) {
+      return profileConfidence;
+    }
+
+    return {
+      type,
+      label: getPersonaSourceLabel(type),
+      ...fallbackPersonaSourceConfidenceMap[type]
+    };
+  });
+}
+
 function getInitialPersonaAction(screen: AppScreen): PersonaAction {
   return screen === "personaSim" ? "practiceConversation" : "replyCoach";
 }
@@ -231,6 +391,7 @@ export function ConversationCoachDemo({
   const [screen, setScreen] = useState<AppScreen>(initialScreen);
   const [onboardingIndex, setOnboardingIndex] = useState(0);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("intro");
+  const [onboardingDirection, setOnboardingDirection] = useState(1);
   const [personaId, setPersonaId] = useState(practiceScenarios[initialMode].personas[0]?.id ?? "");
   const [difficulty, setDifficulty] = useState(practiceScenarios[initialMode].difficulties[1] ?? "");
   const [goal, setGoal] = useState(practiceScenarios[initialMode].goals[0] ?? "");
@@ -241,14 +402,17 @@ export function ConversationCoachDemo({
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [theme, setTheme] = useState<ThemePreference>("Light");
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
-  const [personaScope, setPersonaScope] = useState<PersonaScope>("privatePerson");
-  const [customPersonaName, setCustomPersonaName] = useState(generatedPersonaProfiles.privatePerson.name);
   const [personaAction, setPersonaAction] = useState<PersonaAction>(getInitialPersonaAction(initialScreen));
   const [selectedPersonaSources, setSelectedPersonaSources] = useState<PersonaSourceType[]>(getDefaultPersonaSources("privatePerson"));
+  const [customPersonaName, setCustomPersonaName] = useState(
+    generatedPersonaProfiles[getPersonaScopeForSelection(initialMode, getDefaultPersonaSources("privatePerson"))].name
+  );
   const [sessionType, setSessionType] = useState<"scenario" | "customPersona">(initialScreen === "personaSim" ? "customPersona" : "scenario");
   const [personaOriginScreen, setPersonaOriginScreen] = useState<AppScreen>("home");
 
   const scenario = practiceScenarios[mode];
+  const personaScope = getPersonaScopeForSelection(mode, selectedPersonaSources);
+  const previousPersonaScopeRef = useRef<PersonaScope>(personaScope);
   const customPersona = generatedPersonaProfiles[personaScope];
   const resolvedCustomPersonaName = customPersonaName.trim() || customPersona.name;
   const activeSimulation = sessionType === "customPersona" ? customPersona.simulation : {
@@ -268,8 +432,8 @@ export function ConversationCoachDemo({
     "";
   const progress = Math.round((revealedTurns / activeSimulation.transcript.length) * 100);
   const visiblePersonaSources = personaSourceCatalog.filter((source) => source.type !== "chatExport");
-  const selectedPersonaPreview = customPersona.sources.filter((source) => selectedPersonaSources.includes(source.type));
-  const selectedPersonaConfidence = customPersona.sourceConfidence.filter((source) => selectedPersonaSources.includes(source.type));
+  const selectedPersonaPreview = buildSelectedPersonaSources(customPersona, selectedPersonaSources);
+  const selectedPersonaConfidence = buildSelectedPersonaConfidence(customPersona, selectedPersonaSources);
   const messages: Message[] = [
     { speaker: "ai", text: activeSimulation.opening },
     ...activeSimulation.transcript.slice(0, revealedTurns).flatMap((turn) => [
@@ -323,8 +487,20 @@ export function ConversationCoachDemo({
   }, [mode, scenario.difficulties, scenario.goals, scenario.personas]);
 
   useEffect(() => {
-    setSelectedPersonaSources(getDefaultPersonaSources(personaScope));
-    setCustomPersonaName(generatedPersonaProfiles[personaScope].name);
+    const previousScope = previousPersonaScopeRef.current;
+
+    if (previousScope === personaScope) {
+      return;
+    }
+
+    setCustomPersonaName((current) => {
+      if (current.trim().length === 0 || current === generatedPersonaProfiles[previousScope].name) {
+        return generatedPersonaProfiles[personaScope].name;
+      }
+
+      return current;
+    });
+    previousPersonaScopeRef.current = personaScope;
   }, [personaScope]);
 
   useEffect(() => {
@@ -422,9 +598,10 @@ export function ConversationCoachDemo({
   }
 
   const showTabBar = screen === "home" || screen === "scenarios" || screen === "analytics" || screen === "profile";
+  const screenMotionPreset = getScreenMotionPreset(screen);
 
   const appChrome = (
-    <div className="relative flex h-full flex-col px-4 pb-4 pt-8 text-slate-950 dark:text-slate-100" style={themeVars}>
+    <div className="relative flex h-full min-h-0 flex-col px-4 pb-4 pt-8 text-slate-950 dark:text-slate-100" style={themeVars}>
         <div className="mb-2 px-1.5">
           <span
             className="pl-3 text-[17px] font-semibold leading-none tracking-[-0.03em] text-slate-950 dark:text-slate-100"
@@ -433,29 +610,40 @@ export function ConversationCoachDemo({
             9:41
           </span>
         </div>
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative min-h-0 flex-1 overflow-visible">
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${screen}-${mode}`}
-              variants={screenVariants}
+              key={screen}
+              variants={screenMotionPreset.variants}
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-              className="h-full"
+              transition={screenMotionPreset.transition}
+              className="h-full min-h-0"
             >
               {screen === "onboarding" ? (
                 <OnboardingScreen
                   onboardingIndex={onboardingIndex}
                   onboardingStep={onboardingStep}
+                  onboardingDirection={onboardingDirection}
                   mode={mode}
-                  onAdvance={() =>
-                    setOnboardingIndex((current) => Math.min(current + 1, onboardingSlides.length - 1))
-                  }
-                  onRetreat={() => setOnboardingIndex((current) => Math.max(current - 1, 0))}
+                  onAdvance={() => {
+                    setOnboardingDirection(1);
+                    setOnboardingIndex((current) => Math.min(current + 1, onboardingSlides.length - 1));
+                  }}
+                  onRetreat={() => {
+                    setOnboardingDirection(-1);
+                    setOnboardingIndex((current) => Math.max(current - 1, 0));
+                  }}
                   onSelectMode={setMode}
-                  onShowModeSelection={() => setOnboardingStep("modeSelect")}
-                  onReturnToIntro={() => setOnboardingStep("intro")}
+                  onShowModeSelection={() => {
+                    setOnboardingDirection(1);
+                    setOnboardingStep("modeSelect");
+                  }}
+                  onReturnToIntro={() => {
+                    setOnboardingDirection(-1);
+                    setOnboardingStep("intro");
+                  }}
                   onContinueToApp={() => navigate("setup")}
                   onExplorePrototype={() => navigate("home")}
                 />
@@ -505,7 +693,6 @@ export function ConversationCoachDemo({
                   onBack={() => navigate(personaOriginScreen)}
                   onModeChange={setMode}
                   onPersonaNameChange={setCustomPersonaName}
-                  onScopeChange={setPersonaScope}
                   onActionChange={setPersonaAction}
                   onToggleSource={togglePersonaSource}
                   onGeneratePersona={() => navigate("personaReview")}
@@ -642,6 +829,7 @@ export function ConversationCoachDemo({
 function OnboardingScreen({
   onboardingIndex,
   onboardingStep,
+  onboardingDirection,
   mode,
   onAdvance,
   onRetreat,
@@ -653,6 +841,7 @@ function OnboardingScreen({
 }: {
   onboardingIndex: number;
   onboardingStep: OnboardingStep;
+  onboardingDirection: number;
   mode: PracticeMode;
   onAdvance: () => void;
   onRetreat: () => void;
@@ -665,145 +854,168 @@ function OnboardingScreen({
   const slide = onboardingSlides[onboardingIndex];
   const selectedScenario = practiceScenarios[mode];
 
-  if (onboardingStep === "modeSelect") {
-    return (
-      <div className="flex h-full flex-col justify-between pb-4">
-        <div>
-          <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <p className="text-sm uppercase tracking-[0.24em] text-white/70">choose a mode</p>
-            <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
-              What do you want to rehearse first?
-            </h3>
-            <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">
-              Start with the conversation that matters most right now. You can switch modes or build a custom persona anytime.
-            </p>
-          </div>
-          <div className="mt-4 rounded-[30px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Starting room</p>
-            <h4 className="mt-4 text-2xl font-semibold leading-snug tracking-[-0.03em] text-slate-950 dark:text-slate-100">
-              Pick one of the four practice modes.
-            </h4>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {scenarioModes.map((item) => {
-                const Icon = modeIconMap[item];
-                const active = item === mode;
-
-                return (
-                  <button
-                    key={item}
-                    onClick={() => onSelectMode(item)}
-                    className={`rounded-[24px] border p-4 text-left transition ${
-                      active
-                        ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
-                        : `border-white/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,255,255,0.72)),linear-gradient(135deg,var(--tw-gradient-stops))] text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.82),rgba(15,23,42,0.58)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:text-slate-100 ${modeSurfaceMap[item]}`
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <p className="mt-4 text-sm font-semibold">{practiceScenarios[item].shortTitle}</p>
-                    <p className={`mt-1 text-xs leading-5 ${active ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>
-                      {practiceScenarios[item].summary}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected</p>
-              <p className="mt-2 text-base font-semibold text-slate-950 dark:text-slate-100">{selectedScenario.title}</p>
-              <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{selectedScenario.description}</p>
-            </div>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <button
-            onClick={onContinueToApp}
-            className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
-          >
-            Continue with {selectedScenario.shortTitle}
-          </button>
-          <button
-            onClick={onReturnToIntro}
-            className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
-          >
-            Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full flex-col justify-between pb-4">
-      <div>
-        <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-          <p className="text-sm uppercase tracking-[0.24em] text-white/70">maya</p>
-          <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
-            Practice conversations before they matter.
-          </h3>
-          <p className="mt-4 max-w-xs text-sm leading-6 text-white/75">
-            A premium rehearsal app for interviews, networking, dating, and presentations.
-          </p>
-        </div>
-        <div className="mt-4 rounded-[30px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={slide.title}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.28 }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{slide.eyebrow}</p>
-              <h4 className="mt-4 text-2xl font-semibold leading-snug tracking-[-0.03em] text-slate-950 dark:text-slate-100">
-                {slide.title}
-              </h4>
-              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{slide.body}</p>
-            </motion.div>
-          </AnimatePresence>
-          <div className="mt-5 flex items-center justify-between">
-            <div className="flex gap-2">
-              {onboardingSlides.map((item, index) => (
-                <span
-                  key={item.title}
-                  className={cn(
-                    "h-2 rounded-full transition-all",
-                    index === onboardingIndex ? "w-8 bg-slate-900 dark:bg-white" : "w-2 bg-slate-300 dark:bg-slate-700"
-                  )}
-                />
-              ))}
+    <AnimatePresence mode="wait" custom={onboardingDirection} initial={false}>
+      <motion.div
+        key={onboardingStep}
+        custom={onboardingDirection}
+        variants={onboardingPageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+        className="h-full"
+      >
+        {onboardingStep === "modeSelect" ? (
+          <div className="flex h-full flex-col justify-between pb-4">
+            <div>
+              <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+                <p className="text-sm uppercase tracking-[0.24em] text-white/70">choose a mode</p>
+                <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
+                  What do you want to rehearse first?
+                </h3>
+                <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">
+                  Start with the conversation that matters most right now. You can switch modes or build a custom persona anytime.
+                </p>
+              </div>
+              <div className="mt-4 rounded-[30px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Starting room</p>
+                <h4 className="mt-4 text-2xl font-semibold leading-snug tracking-[-0.03em] text-slate-950 dark:text-slate-100">
+                  Pick one of the four practice modes.
+                </h4>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {scenarioModes.map((item) => {
+                    const Icon = modeIconMap[item];
+                    const active = item === mode;
+
+                    return (
+                      <button
+                        key={item}
+                        onClick={() => onSelectMode(item)}
+                        className={`rounded-[24px] border p-4 text-left transition ${
+                          active
+                            ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                            : `border-white/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,255,255,0.72)),linear-gradient(135deg,var(--tw-gradient-stops))] text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.82),rgba(15,23,42,0.58)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:text-slate-100 ${modeSurfaceMap[item]}`
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <p className="mt-4 text-sm font-semibold">{practiceScenarios[item].shortTitle}</p>
+                        <p className={`mt-1 text-xs leading-5 ${active ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>
+                          {practiceScenarios[item].summary}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={mode}
+                    variants={modeFadeVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="mt-4 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected</p>
+                    <p className="mt-2 text-base font-semibold text-slate-950 dark:text-slate-100">{selectedScenario.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{selectedScenario.description}</p>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="space-y-3">
               <button
-                onClick={onRetreat}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-white/6 dark:text-slate-300 dark:hover:bg-white/10"
+                onClick={onContinueToApp}
+                className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
               >
-                <ChevronLeft className="h-4 w-4" />
+                Continue with {selectedScenario.shortTitle}
               </button>
               <button
-                onClick={onAdvance}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-white/6 dark:text-slate-300 dark:hover:bg-white/10"
+                onClick={onReturnToIntro}
+                className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
               >
-                <ChevronRight className="h-4 w-4" />
+                Back
               </button>
             </div>
           </div>
-        </div>
-      </div>
-      <div className="space-y-3">
-        <button
-          onClick={onShowModeSelection}
-          className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
-        >
-          Get Started
-        </button>
-        <button
-          onClick={onExplorePrototype}
-          className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
-        >
-          Explore the prototype
-        </button>
-      </div>
-    </div>
+        ) : (
+          <div className="flex h-full flex-col justify-between pb-4">
+            <div>
+              <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+                <p className="text-sm uppercase tracking-[0.24em] text-white/70">maya</p>
+                <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
+                  Practice conversations before they matter.
+                </h3>
+                <p className="mt-4 max-w-xs text-sm leading-6 text-white/75">
+                  A premium rehearsal app for interviews, networking, dating, and presentations.
+                </p>
+              </div>
+              <div className="mt-4 rounded-[30px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
+                <AnimatePresence mode="wait" custom={onboardingDirection} initial={false}>
+                  <motion.div
+                    key={slide.title}
+                    custom={onboardingDirection}
+                    variants={onboardingSlideVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">{slide.eyebrow}</p>
+                    <h4 className="mt-4 text-2xl font-semibold leading-snug tracking-[-0.03em] text-slate-950 dark:text-slate-100">
+                      {slide.title}
+                    </h4>
+                    <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{slide.body}</p>
+                  </motion.div>
+                </AnimatePresence>
+                <div className="mt-5 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {onboardingSlides.map((item, index) => (
+                      <span
+                        key={item.title}
+                        className={cn(
+                          "h-2 rounded-full transition-all",
+                          index === onboardingIndex ? "w-8 bg-slate-900 dark:bg-white" : "w-2 bg-slate-300 dark:bg-slate-700"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={onRetreat}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-white/6 dark:text-slate-300 dark:hover:bg-white/10"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={onAdvance}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-white/6 dark:text-slate-300 dark:hover:bg-white/10"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={onShowModeSelection}
+                className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
+              >
+                Get Started
+              </button>
+              <button
+                onClick={onExplorePrototype}
+                className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+              >
+                Explore the prototype
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -825,7 +1037,7 @@ function HomeScreen({
   onOpenAnalytics: () => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-24 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-24">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Daily focus</p>
@@ -961,7 +1173,7 @@ function ScenarioSelectionScreen({
   onOpenCustomPersona: () => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-24 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-24">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Scenario Selection</p>
       <h3 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100">Choose your practice room.</h3>
       <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
@@ -1088,7 +1300,7 @@ function SessionSetupScreen({
   const scenario = practiceScenarios[mode];
 
   return (
-    <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-8">
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
@@ -1100,12 +1312,24 @@ function SessionSetupScreen({
           Session Setup
         </div>
       </div>
-      <div className="mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.68)),linear-gradient(135deg,var(--tw-gradient-stops))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected scenario</p>
-        <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">{scenario.title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{scenario.context}</p>
-        <p className="mt-4 text-sm font-medium text-slate-900 dark:text-slate-200">{scenario.stat}</p>
-      </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={`setup-scenario-${mode}`}
+          variants={modeFadeVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="mt-4"
+        >
+          <div className="rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.68)),linear-gradient(135deg,var(--tw-gradient-stops))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected scenario</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">{scenario.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{scenario.context}</p>
+            <p className="mt-4 text-sm font-medium text-slate-900 dark:text-slate-200">{scenario.stat}</p>
+          </div>
+        </motion.div>
+      </AnimatePresence>
       <div className="mt-4 space-y-5">
         <SetupSectionTitle title="Scenario type" subtitle="Switch the rehearsal room instantly." />
         <div className="flex flex-wrap gap-2">
@@ -1122,81 +1346,92 @@ function SessionSetupScreen({
           ))}
         </div>
       </div>
-      <div className="mt-5 space-y-3">
-        <SetupSectionTitle title="AI persona" subtitle="Pick a preset AI persona or build one from your own context." />
-        <button
-          onClick={onOpenCustomPersona}
-          className="w-full rounded-[24px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,255,0.92))] p-4 text-left shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68))] dark:text-slate-100 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]"
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={`setup-details-${mode}`}
+          variants={modeFadeVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={{ duration: 0.18, ease: "easeOut" }}
         >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
-                <Paperclip className="h-5 w-5" />
+          <div className="mt-5 space-y-3">
+            <SetupSectionTitle title="AI persona" subtitle="Pick a preset AI persona or build one from your own context." />
+            <button
+              onClick={onOpenCustomPersona}
+              className="w-full rounded-[24px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,255,0.92))] p-4 text-left shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68))] dark:text-slate-100 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+                    <Paperclip className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-950 dark:text-slate-100">Create Persona</p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                      Use chats, screenshots, exports, or public URLs to build someone specific.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Custom</span>
               </div>
-              <div>
-                <p className="font-semibold text-slate-950 dark:text-slate-100">Create Persona</p>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                  Use chats, screenshots, exports, or public URLs to build someone specific.
-                </p>
-              </div>
-            </div>
-            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Custom</span>
+            </button>
+            {scenario.personas.map((persona) => (
+              <button
+                key={persona.id}
+                onClick={() => onPersonaSelect(persona.id)}
+                className={`w-full rounded-[24px] border p-4 text-left transition ${
+                  persona.id === personaId
+                    ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                    : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{persona.name}</p>
+                    <p className={`mt-1 text-sm ${persona.id === personaId ? "text-white/70" : "text-slate-600 dark:text-slate-400"}`}>{persona.role}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${persona.id === personaId ? "bg-white/10" : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
+                    {persona.focus}
+                  </span>
+                </div>
+              </button>
+            ))}
           </div>
-        </button>
-        {scenario.personas.map((persona) => (
-          <button
-            key={persona.id}
-            onClick={() => onPersonaSelect(persona.id)}
-            className={`w-full rounded-[24px] border p-4 text-left transition ${
-              persona.id === personaId
-                ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
-                : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">{persona.name}</p>
-                <p className={`mt-1 text-sm ${persona.id === personaId ? "text-white/70" : "text-slate-600 dark:text-slate-400"}`}>{persona.role}</p>
-              </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${persona.id === personaId ? "bg-white/10" : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
-                {persona.focus}
-              </span>
+          <div className="mt-5">
+            <SetupSectionTitle title="Difficulty" subtitle="Adjust pressure and realism." />
+            <div className="mt-3 flex rounded-full border border-slate-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/6">
+              {scenario.difficulties.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => onDifficultySelect(item)}
+                  className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition ${
+                    item === difficulty ? "bg-slate-950 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] dark:bg-white dark:text-slate-950" : "text-slate-500 dark:text-slate-400"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
-          </button>
-        ))}
-      </div>
-      <div className="mt-5">
-        <SetupSectionTitle title="Difficulty" subtitle="Adjust pressure and realism." />
-        <div className="mt-3 flex rounded-full border border-slate-200 bg-white/70 p-1 dark:border-white/10 dark:bg-white/6">
-          {scenario.difficulties.map((item) => (
-            <button
-              key={item}
-              onClick={() => onDifficultySelect(item)}
-              className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition ${
-                item === difficulty ? "bg-slate-950 text-white shadow-[0_10px_20px_rgba(15,23,42,0.12)] dark:bg-white dark:text-slate-950" : "text-slate-500 dark:text-slate-400"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-5">
-        <SetupSectionTitle title="Conversation goal" subtitle="Choose the outcome you want to optimize for." />
-        <div className="mt-3 flex flex-wrap gap-2">
-          {scenario.goals.map((item) => (
-            <button
-              key={item}
-              onClick={() => onGoalSelect(item)}
-              className={`rounded-full px-4 py-2 text-sm transition ${
-                item === goal ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "border border-slate-200 bg-white/75 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
+          </div>
+          <div className="mt-5">
+            <SetupSectionTitle title="Conversation goal" subtitle="Choose the outcome you want to optimize for." />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {scenario.goals.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => onGoalSelect(item)}
+                  className={`rounded-full px-4 py-2 text-sm transition ${
+                    item === goal ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "border border-slate-200 bg-white/75 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
       <button
         onClick={onStartSession}
         className="mt-6 w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
@@ -1218,7 +1453,6 @@ function CustomPersonaCreateScreen({
   onBack,
   onModeChange,
   onPersonaNameChange,
-  onScopeChange,
   onActionChange,
   onToggleSource,
   onGeneratePersona
@@ -1233,7 +1467,6 @@ function CustomPersonaCreateScreen({
   onBack: () => void;
   onModeChange: (value: PracticeMode) => void;
   onPersonaNameChange: (value: string) => void;
-  onScopeChange: (value: PersonaScope) => void;
   onActionChange: (value: PersonaAction) => void;
   onToggleSource: (value: PersonaSourceType) => void;
   onGeneratePersona: () => void;
@@ -1273,7 +1506,7 @@ function CustomPersonaCreateScreen({
 
   return (
     <div className="relative h-full">
-      <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+      <div className="h-full min-h-0 phone-scroll pb-8">
         <div className="flex items-center justify-between">
           <button
             onClick={onBack}
@@ -1309,11 +1542,21 @@ function CustomPersonaCreateScreen({
               </button>
             ))}
           </div>
-          <div className="mt-3 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected room</p>
-            <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-slate-100">{practiceScenarios[mode].title}</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{practiceScenarios[mode].summary}</p>
-          </div>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`persona-room-${mode}`}
+              variants={modeFadeVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="mt-3 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected room</p>
+              <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-slate-100">{practiceScenarios[mode].title}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{practiceScenarios[mode].summary}</p>
+            </motion.div>
+          </AnimatePresence>
         </div>
         <div className="mt-5">
           <SetupSectionTitle title="Persona name" subtitle="Give this person, audience, or rehearsal partner a name." />
@@ -1323,37 +1566,6 @@ function CustomPersonaCreateScreen({
             placeholder={generatedPersonaProfiles[personaScope].name}
             className="mt-3 w-full rounded-[24px] border border-slate-200 bg-white/85 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300 dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
-        </div>
-        <div className="mt-5 space-y-3">
-          <SetupSectionTitle title="Persona scope" subtitle="Decide whether this is a private person, public figure, or presentation audience." />
-          <div className="grid gap-3">
-            {personaScopeOptions.map((option) => {
-              const Icon = personaScopeIconMap[option.id];
-
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => onScopeChange(option.id)}
-                  className={`w-full rounded-[24px] border p-4 text-left transition ${
-                    option.id === personaScope
-                      ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
-                      : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${option.id === personaScope ? "bg-white/10" : "border border-white/70 bg-white/80 dark:border-white/10 dark:bg-white/10"}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{option.eyebrow}</p>
-                      <p className="mt-2 text-base font-semibold">{option.label}</p>
-                      <p className={`mt-1 text-sm leading-6 ${option.id === personaScope ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>{option.description}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </div>
         <div className="mt-5">
           <SetupSectionTitle title="Persona action" subtitle="Choose whether you want drafts right away or a live practice room." />
@@ -1410,73 +1622,40 @@ function CustomPersonaCreateScreen({
               {(() => {
                 const Icon = personaSourceIconMap[webSearchSource.type];
                 const active = selectedSources.includes(webSearchSource.type);
-                const locked = personaScope === "privatePerson";
 
                 return (
                   <button
-                    onClick={() => {
-                      if (locked) {
-                        return;
-                      }
-
-                      handleSourcePress(webSearchSource.type);
-                    }}
+                    onClick={() => handleSourcePress(webSearchSource.type)}
                     className={`w-full rounded-[24px] border p-4 text-left transition ${
-                      locked
-                        ? "cursor-not-allowed border-slate-200/80 bg-slate-100/80 text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-500"
-                        : active
-                          ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
-                          : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
+                      active
+                        ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                        : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${
-                          locked
-                            ? "border border-slate-200 bg-white/70 text-slate-400 dark:border-white/10 dark:bg-white/6 dark:text-slate-500"
-                            : active
-                              ? "bg-white/10"
-                              : "border border-white/70 bg-white/80 dark:border-white/10 dark:bg-white/10"
-                        }`}>
+                        <div className="mt-0.5 flex h-10 w-10 items-center justify-center">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold">{webSearchSource.label}</p>
-                            {locked ? (
-                              <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:bg-white/8 dark:text-slate-400">
-                                Public only
-                              </span>
-                            ) : null}
-                          </div>
+                          <p className="text-sm font-semibold">{webSearchSource.label}</p>
                           <p className={`mt-1 text-sm leading-6 ${
-                            locked
-                              ? "text-slate-400 dark:text-slate-500"
-                              : active
-                                ? "text-white/72"
-                                : "text-slate-600 dark:text-slate-400"
+                            active
+                              ? "text-white/72"
+                              : "text-slate-600 dark:text-slate-400"
                           }`}>
-                            {locked
-                              ? "Switch persona scope to Public figure or Audience to add web research."
-                              : webSearchSource.description}
+                            {webSearchSource.description}
                           </p>
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-                          locked
-                            ? "bg-white/70 text-slate-500 dark:bg-white/8 dark:text-slate-400"
-                            : active
-                              ? "bg-white/10 text-white/80"
-                              : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300"
+                          active
+                            ? "bg-white/10 text-white/80"
+                            : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300"
                         }`}>
-                          {locked ? "Locked" : active ? "Added" : "Tap to add"}
+                          {active ? "Attached" : "Tap to add"}
                         </span>
-                        {locked ? (
-                          <p className="mt-2 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                            Change scope above
-                          </p>
-                        ) : null}
                       </div>
                     </div>
                   </button>
@@ -1582,7 +1761,7 @@ function PersonaSourceSheet({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute inset-0 z-30 flex items-end justify-center bg-[rgba(15,23,42,0.46)] p-3 backdrop-blur-sm"
+      className="absolute -bottom-4 -left-4 -right-4 -top-16 z-30 flex items-end justify-center bg-[rgba(15,23,42,0.46)] px-3 pb-3 backdrop-blur-sm"
     >
       <button
         aria-label="Close source sheet"
@@ -1594,7 +1773,7 @@ function PersonaSourceSheet({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 44, scale: 0.96 }}
         transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 flex w-full max-h-full flex-col overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.985))] shadow-[0_30px_80px_rgba(15,23,42,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(10,15,28,0.995),rgba(15,23,42,0.985))]"
+        className="relative z-10 flex w-full max-h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.985))] shadow-[0_30px_80px_rgba(15,23,42,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(10,15,28,0.995),rgba(15,23,42,0.985))]"
       >
         <div className="border-b border-slate-200/80 px-5 pb-4 pt-5 dark:border-white/10">
           <div className="flex items-start justify-between gap-4">
@@ -1616,7 +1795,7 @@ function PersonaSourceSheet({
             </button>
           </div>
         </div>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+        <div className="flex-1 min-h-0 space-y-4 phone-scroll px-5 py-5">
           {copy.attachmentLabel ? (
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/6">
               {sourceType === "screenshot" ? (
@@ -1760,7 +1939,7 @@ function SourceRemovalSheet({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute inset-0 z-40 flex items-end justify-center bg-[rgba(15,23,42,0.42)] p-3 backdrop-blur-sm"
+      className="absolute -bottom-4 -left-4 -right-4 -top-16 z-40 flex items-end justify-center bg-[rgba(15,23,42,0.42)] px-3 pb-3 backdrop-blur-sm"
     >
       <button aria-label="Close removal confirmation" className="absolute inset-0" onClick={onClose} />
       <motion.div
@@ -1825,7 +2004,7 @@ function CustomPersonaReviewScreen({
   onStartSimulation: () => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-8">
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
@@ -1947,7 +2126,7 @@ function ReplyCoachScreen({
   onStartSimulation: () => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-8">
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
@@ -2069,7 +2248,7 @@ function LiveSessionScreen({
   }, [messages.length]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
@@ -2104,7 +2283,7 @@ function LiveSessionScreen({
           />
         </div>
       </div>
-      <div className="relative mt-4 flex-1 overflow-hidden rounded-[28px] border border-white/70 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+      <div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/70 bg-white/82 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
         <AnimatePresence>
           {hintOpen ? (
             <motion.div
@@ -2125,7 +2304,7 @@ function LiveSessionScreen({
             </motion.div>
           ) : null}
         </AnimatePresence>
-        <div ref={messageListRef} className="h-full overflow-y-auto p-3 pb-4 scrollbar-hidden">
+        <div ref={messageListRef} className="h-full phone-scroll p-3 pb-4">
           <div className="space-y-3 pt-1">
             <AnimatePresence initial={false}>
               {messages.map((message) => (
@@ -2188,7 +2367,7 @@ function FeedbackScreen({
   onBack: () => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-6 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-6">
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
@@ -2280,7 +2459,7 @@ function AnalyticsScreen({
       : "bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(59,130,246,0.72))]";
 
   return (
-    <div className="h-full overflow-y-auto pb-24 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-24">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Progress Analytics</p>
       <h3 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100">Momentum you can feel.</h3>
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2350,7 +2529,7 @@ function ProfileScreen({
   onModeSelect: (mode: PracticeMode) => void;
 }) {
   return (
-    <div className="h-full overflow-y-auto pb-24 scrollbar-hidden">
+    <div className="h-full min-h-0 phone-scroll pb-24">
       <div className="rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(241,245,249,0.75))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.7))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">

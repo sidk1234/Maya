@@ -41,4 +41,16 @@ body {
   .scrollbar-hidden::-webkit-scrollbar {
     display: none;
   }
+
+  .phone-scroll {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: none;
+  }
+
+  .phone-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
