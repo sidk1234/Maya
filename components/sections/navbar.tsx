@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { buttonStyles } from "@/components/ui/button";
+import { BrandLogo } from "@/components/ui/brand-logo";
 
 const navItems = [
   { label: "Product", href: "#product" },
@@ -16,13 +17,10 @@ export function Navbar() {
       <div className="mx-auto max-w-7xl px-6 pt-4">
         <div className="flex items-center justify-between rounded-full border border-white/60 bg-white/70 px-4 py-3 shadow-[0_16px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#0f172a,#3b82f6,#8b5cf6)] text-sm font-semibold text-white shadow-[0_12px_24px_rgba(59,130,246,0.28)]">
-              m
+            <span className="rounded-[18px] border border-slate-200/80 bg-white px-3 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
+              <BrandLogo className="h-8 w-[116px]" priority />
             </span>
-            <div>
-              <p className="text-sm font-semibold text-slate-950">maya</p>
-              <p className="text-xs text-slate-500">AI rehearsal for real life</p>
-            </div>
+            <p className="hidden text-xs font-medium text-slate-500 sm:block">AI rehearsal for real life</p>
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-slate-600 lg:flex">
             {navItems.map((item) => (

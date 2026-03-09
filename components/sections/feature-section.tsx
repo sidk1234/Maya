@@ -31,7 +31,7 @@ export function FeatureSection() {
             Four high-stakes scenarios, each built like a focused product surface.
           </h2>
           <p className="mt-5 text-lg text-slate-600">
-            maya adapts the persona, pressure, and feedback language to the situation you are actually preparing for.
+            maya adapts the persona, pressure, and feedback language to the situation you are actually preparing for, and now lets you build custom personas when the exact person or audience matters more than a preset mode.
           </p>
         </div>
         <div className="mt-14 grid gap-6 lg:grid-cols-4">

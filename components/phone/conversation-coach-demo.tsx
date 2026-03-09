@@ -5,16 +5,22 @@ import { startTransition, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Bot,
   Bell,
   Briefcase,
+  Camera,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Flame,
   Heart,
   Home,
+  ImageIcon,
   Lightbulb,
+  Link2,
   MessageSquare,
   Mic,
+  Paperclip,
   Presentation,
   Sparkles,
   Square,
@@ -22,13 +28,23 @@ import {
   TrendingUp,
   UserRound,
   Users,
-  WandSparkles
+  WandSparkles,
+  X
 } from "lucide-react";
 
 import { PhoneShell } from "@/components/phone/phone-shell";
 import { CountUp } from "@/components/ui/count-up";
-import { practiceScenarios, scenarioModes, onboardingSlides } from "@/data/conversation-coach";
-import { AppScreen, PracticeMode } from "@/lib/types";
+import {
+  customPersonaShowcase,
+  generatedPersonaProfiles,
+  onboardingSlides,
+  personaActionOptions,
+  personaScopeOptions,
+  personaSourceCatalog,
+  practiceScenarios,
+  scenarioModes
+} from "@/data/conversation-coach";
+import { AppScreen, PersonaAction, PersonaScope, PersonaSourceType, PracticeMode, SessionFeedback } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type DemoProps = {
@@ -44,6 +60,12 @@ type Message = {
   text: string;
 };
 
+type OnboardingStep = "intro" | "modeSelect";
+type PersonaSourceDraft = {
+  primaryText: string;
+  note: string;
+  attachmentNames: string[];
+};
 type ThemePreference = "Light" | "Dark" | "Auto";
 type ResolvedTheme = "light" | "dark";
 
@@ -59,6 +81,25 @@ const modeSurfaceMap: Record<PracticeMode, string> = {
   networking: "from-violet-500/20 to-sky-300/15",
   dating: "from-rose-500/20 to-orange-300/15",
   presentation: "from-teal-500/20 to-sky-300/15"
+};
+
+const personaScopeSurfaceMap: Record<PersonaScope, string> = {
+  privatePerson: "from-rose-500/18 to-fuchsia-300/18",
+  publicFigure: "from-sky-500/20 to-indigo-300/18",
+  audience: "from-emerald-500/18 to-cyan-300/18"
+};
+
+const personaScopeIconMap: Record<PersonaScope, typeof UserRound> = {
+  privatePerson: UserRound,
+  publicFigure: WandSparkles,
+  audience: Presentation
+};
+
+const personaSourceIconMap: Record<PersonaSourceType, typeof MessageSquare> = {
+  pastedText: MessageSquare,
+  screenshot: ImageIcon,
+  chatExport: FileText,
+  publicUrl: Link2
 };
 
 const metricToneMap: Record<string, string> = {
@@ -79,6 +120,103 @@ const screenVariants = {
 const weeklyPractice = [2, 4, 5, 3, 6, 7, 5];
 const skillTrend = [72, 76, 79, 84, 82, 89, 93];
 
+function getMockAttachmentName(type: PersonaSourceType, count: number) {
+  if (type === "screenshot") {
+    return `story-screenshot-${count + 1}.png`;
+  }
+
+  if (type === "chatExport") {
+    return "dm-export.txt";
+  }
+
+  return `attachment-${count + 1}`;
+}
+
+const personaSourceDraftDefaults: Record<PersonaSourceType, PersonaSourceDraft> = {
+  pastedText: {
+    primaryText: "hey, i saw your story and that rooftop set looked unreal. was that from last night?",
+    note: "",
+    attachmentNames: []
+  },
+  screenshot: {
+    primaryText: "This is an Instagram story screenshot. Mirror the tone without sounding too rehearsed.",
+    note: "",
+    attachmentNames: []
+  },
+  chatExport: {
+    primaryText: "Longer chat history to capture recurring phrasing and pacing.",
+    note: "",
+    attachmentNames: ["dm-export.txt"]
+  },
+  publicUrl: {
+    primaryText: "https://example.com/speaker-profile",
+    note: "Use this to model presentation style and likely follow-up questions.",
+    attachmentNames: []
+  }
+};
+
+const personaSourceSheetCopy: Record<
+  PersonaSourceType,
+  {
+    title: string;
+    body: string;
+    fieldLabel: string;
+    placeholder: string;
+    noteLabel?: string;
+    notePlaceholder?: string;
+    attachmentLabel?: string;
+    attachmentButton?: string;
+    saveLabel: string;
+  }
+> = {
+  pastedText: {
+    title: "Paste chats or notes",
+    body: "Drop in texts, emails, DMs, or notes so Maya can learn rhythm, pacing, and recurring phrases.",
+    fieldLabel: "Pasted content",
+    placeholder: "Paste a few messages, email snippets, or notes here...",
+    saveLabel: "Add pasted chats"
+  },
+  screenshot: {
+    title: "Upload screenshots",
+    body: "Attach a message screenshot, story capture, or slide snippet so the persona keeps the visual context.",
+    fieldLabel: "Context note",
+    placeholder: "Add any context Maya should keep in mind about this image...",
+    attachmentLabel: "Screenshots",
+    attachmentButton: "Add screenshot",
+    saveLabel: "Add screenshots"
+  },
+  chatExport: {
+    title: "Upload a chat export",
+    body: "Drop in a longer export when you want the persona to reflect more than one interaction.",
+    fieldLabel: "What this export covers",
+    placeholder: "Describe what period or conversation this export represents...",
+    attachmentLabel: "Export file",
+    attachmentButton: "Upload export",
+    saveLabel: "Add export"
+  },
+  publicUrl: {
+    title: "Add web research",
+    body: "Search the web or paste a public URL when you want Maya to model a public figure or presentation audience.",
+    fieldLabel: "Search query or public URL",
+    placeholder: "Search a public figure, company, or paste a URL...",
+    noteLabel: "Research note",
+    notePlaceholder: "Tell Maya what to focus on, like speaking style or likely questions...",
+    saveLabel: "Add web research"
+  }
+};
+
+function getDefaultPersonaSources(scope: PersonaScope): PersonaSourceType[] {
+  if (scope === "privatePerson") {
+    return ["pastedText", "screenshot"];
+  }
+
+  return ["pastedText", "screenshot", "publicUrl"];
+}
+
+function getInitialPersonaAction(screen: AppScreen): PersonaAction {
+  return screen === "personaSim" ? "practiceConversation" : "replyCoach";
+}
+
 export function ConversationCoachDemo({
   initialMode = "interview",
   initialScreen = "home",
@@ -86,9 +224,13 @@ export function ConversationCoachDemo({
   className,
   renderMode = "device"
 }: DemoProps) {
+  const propStateRef = useRef({ mode: initialMode, screen: initialScreen });
+  const reportedStateRef = useRef({ mode: initialMode, screen: initialScreen });
+  const syncingFromPropsRef = useRef(false);
   const [mode, setMode] = useState<PracticeMode>(initialMode);
   const [screen, setScreen] = useState<AppScreen>(initialScreen);
   const [onboardingIndex, setOnboardingIndex] = useState(0);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("intro");
   const [personaId, setPersonaId] = useState(practiceScenarios[initialMode].personas[0]?.id ?? "");
   const [difficulty, setDifficulty] = useState(practiceScenarios[initialMode].difficulties[1] ?? "");
   const [goal, setGoal] = useState(practiceScenarios[initialMode].goals[0] ?? "");
@@ -99,38 +241,77 @@ export function ConversationCoachDemo({
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [theme, setTheme] = useState<ThemePreference>("Light");
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
+  const [personaScope, setPersonaScope] = useState<PersonaScope>("privatePerson");
+  const [customPersonaName, setCustomPersonaName] = useState(generatedPersonaProfiles.privatePerson.name);
+  const [personaAction, setPersonaAction] = useState<PersonaAction>(getInitialPersonaAction(initialScreen));
+  const [selectedPersonaSources, setSelectedPersonaSources] = useState<PersonaSourceType[]>(getDefaultPersonaSources("privatePerson"));
+  const [sessionType, setSessionType] = useState<"scenario" | "customPersona">(initialScreen === "personaSim" ? "customPersona" : "scenario");
+  const [personaOriginScreen, setPersonaOriginScreen] = useState<AppScreen>("home");
 
   const scenario = practiceScenarios[mode];
+  const customPersona = generatedPersonaProfiles[personaScope];
+  const resolvedCustomPersonaName = customPersonaName.trim() || customPersona.name;
+  const activeSimulation = sessionType === "customPersona" ? customPersona.simulation : {
+    context: scenario.context,
+    opening: scenario.opening,
+    transcript: scenario.transcript
+  };
+  const activeFeedback: SessionFeedback = sessionType === "customPersona" ? customPersona.feedback : scenario.feedback;
   const currentPersona = scenario.personas.find((item) => item.id === personaId) ?? scenario.personas[0];
   const currentReaction =
     revealedTurns === 0
       ? "Listening"
-      : scenario.transcript[Math.min(revealedTurns - 1, scenario.transcript.length - 1)]?.reaction ?? "Listening";
+      : activeSimulation.transcript[Math.min(revealedTurns - 1, activeSimulation.transcript.length - 1)]?.reaction ?? "Listening";
   const currentHint =
-    scenario.transcript[Math.min(revealedTurns, scenario.transcript.length - 1)]?.hint ??
-    scenario.transcript[scenario.transcript.length - 1]?.hint ??
+    activeSimulation.transcript[Math.min(revealedTurns, activeSimulation.transcript.length - 1)]?.hint ??
+    activeSimulation.transcript[activeSimulation.transcript.length - 1]?.hint ??
     "";
-  const progress = Math.round((revealedTurns / scenario.transcript.length) * 100);
+  const progress = Math.round((revealedTurns / activeSimulation.transcript.length) * 100);
+  const visiblePersonaSources = personaSourceCatalog.filter((source) => source.type !== "chatExport");
+  const selectedPersonaPreview = customPersona.sources.filter((source) => selectedPersonaSources.includes(source.type));
+  const selectedPersonaConfidence = customPersona.sourceConfidence.filter((source) => selectedPersonaSources.includes(source.type));
   const messages: Message[] = [
-    { speaker: "ai", text: scenario.opening },
-    ...scenario.transcript.slice(0, revealedTurns).flatMap((turn) => [
+    { speaker: "ai", text: activeSimulation.opening },
+    ...activeSimulation.transcript.slice(0, revealedTurns).flatMap((turn) => [
       { speaker: "user" as const, text: turn.user },
       { speaker: "ai" as const, text: turn.ai }
     ])
   ];
 
   useEffect(() => {
-    startTransition(() => {
-      setMode(initialMode);
-    });
-  }, [initialMode]);
+    const modeChanged = propStateRef.current.mode !== initialMode;
+    const screenChanged = propStateRef.current.screen !== initialScreen;
 
-  useEffect(() => {
-    startTransition(() => {
+    if (!modeChanged && !screenChanged) {
+      return;
+    }
+
+    syncingFromPropsRef.current = true;
+    propStateRef.current = { mode: initialMode, screen: initialScreen };
+
+    if (modeChanged) {
+      setMode(initialMode);
+    }
+
+    if (screenChanged) {
       setScreen(initialScreen);
-    });
-    setRevealedTurns(initialScreen === "live" ? 1 : 0);
-  }, [initialScreen]);
+      setRevealedTurns(initialScreen === "live" || initialScreen === "personaSim" ? 1 : 0);
+
+      if (initialScreen === "onboarding") {
+        setOnboardingIndex(0);
+        setOnboardingStep("intro");
+      }
+
+      if (initialScreen === "personaSim") {
+        setPersonaAction("practiceConversation");
+        setSessionType("customPersona");
+      } else if (initialScreen === "live" || initialScreen === "feedback") {
+        setSessionType("scenario");
+      } else if (initialScreen === "replyCoach") {
+        setPersonaAction("replyCoach");
+      }
+    }
+  }, [initialMode, initialScreen]);
 
   useEffect(() => {
     setPersonaId(scenario.personas[0]?.id ?? "");
@@ -142,8 +323,27 @@ export function ConversationCoachDemo({
   }, [mode, scenario.difficulties, scenario.goals, scenario.personas]);
 
   useEffect(() => {
+    setSelectedPersonaSources(getDefaultPersonaSources(personaScope));
+    setCustomPersonaName(generatedPersonaProfiles[personaScope].name);
+  }, [personaScope]);
+
+  useEffect(() => {
+    if (syncingFromPropsRef.current) {
+      if (mode === initialMode && screen === initialScreen) {
+        syncingFromPropsRef.current = false;
+        reportedStateRef.current = { mode, screen };
+      }
+
+      return;
+    }
+
+    if (reportedStateRef.current.mode === mode && reportedStateRef.current.screen === screen) {
+      return;
+    }
+
+    reportedStateRef.current = { mode, screen };
     onStateChange?.({ mode, screen });
-  }, [mode, onStateChange, screen]);
+  }, [initialMode, initialScreen, mode, onStateChange, screen]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -172,6 +372,11 @@ export function ConversationCoachDemo({
     });
   }
 
+  function openCustomPersona(fromScreen: AppScreen) {
+    setPersonaOriginScreen(fromScreen);
+    navigate("personaCreate");
+  }
+
   function handleModeSelect(nextMode: PracticeMode, nextScreen: AppScreen = "setup") {
     startTransition(() => {
       setMode(nextMode);
@@ -180,14 +385,35 @@ export function ConversationCoachDemo({
   }
 
   function handleStartSession() {
+    setSessionType("scenario");
     setRevealedTurns(0);
     setHintOpen(false);
     setTypedMode(false);
     navigate("live");
   }
 
+  function handleStartPersonaSimulation() {
+    setSessionType("customPersona");
+    setPersonaAction("practiceConversation");
+    setRevealedTurns(0);
+    setHintOpen(false);
+    setTypedMode(false);
+    navigate("personaSim");
+  }
+
+  function handleOpenReplyCoach() {
+    setPersonaAction("replyCoach");
+    navigate("replyCoach");
+  }
+
+  function togglePersonaSource(type: PersonaSourceType) {
+    setSelectedPersonaSources((current) =>
+      current.includes(type) ? current.filter((item) => item !== type) : [...current, type]
+    );
+  }
+
   function handleNextResponse() {
-    if (revealedTurns >= scenario.transcript.length) {
+    if (revealedTurns >= activeSimulation.transcript.length) {
       navigate("feedback");
       return;
     }
@@ -221,11 +447,17 @@ export function ConversationCoachDemo({
               {screen === "onboarding" ? (
                 <OnboardingScreen
                   onboardingIndex={onboardingIndex}
+                  onboardingStep={onboardingStep}
+                  mode={mode}
                   onAdvance={() =>
                     setOnboardingIndex((current) => Math.min(current + 1, onboardingSlides.length - 1))
                   }
                   onRetreat={() => setOnboardingIndex((current) => Math.max(current - 1, 0))}
-                  onStart={() => navigate("home")}
+                  onSelectMode={setMode}
+                  onShowModeSelection={() => setOnboardingStep("modeSelect")}
+                  onReturnToIntro={() => setOnboardingStep("intro")}
+                  onContinueToApp={() => navigate("setup")}
+                  onExplorePrototype={() => navigate("home")}
                 />
               ) : null}
               {screen === "home" ? (
@@ -233,6 +465,8 @@ export function ConversationCoachDemo({
                   mode={mode}
                   progressScore={scenario.feedback.overallScore}
                   onSelectMode={(nextMode) => handleModeSelect(nextMode)}
+                  onContinueCurrentMode={() => handleModeSelect(mode)}
+                  onOpenCustomPersona={() => openCustomPersona("home")}
                   onOpenScenarios={() => navigate("scenarios")}
                   onOpenAnalytics={() => navigate("analytics")}
                 />
@@ -241,6 +475,7 @@ export function ConversationCoachDemo({
                 <ScenarioSelectionScreen
                   activeMode={mode}
                   onSelectMode={(nextMode) => handleModeSelect(nextMode)}
+                  onOpenCustomPersona={() => openCustomPersona("scenarios")}
                 />
               ) : null}
               {screen === "setup" ? (
@@ -254,12 +489,54 @@ export function ConversationCoachDemo({
                   onPersonaSelect={setPersonaId}
                   onDifficultySelect={setDifficulty}
                   onGoalSelect={setGoal}
+                  onOpenCustomPersona={() => openCustomPersona("setup")}
                   onStartSession={handleStartSession}
+                />
+              ) : null}
+              {screen === "personaCreate" ? (
+                <CustomPersonaCreateScreen
+                  mode={mode}
+                  personaName={customPersonaName}
+                  personaScope={personaScope}
+                  personaAction={personaAction}
+                  selectedSources={selectedPersonaSources}
+                  visibleSources={visiblePersonaSources}
+                  sourcePreview={selectedPersonaPreview}
+                  onBack={() => navigate(personaOriginScreen)}
+                  onModeChange={setMode}
+                  onPersonaNameChange={setCustomPersonaName}
+                  onScopeChange={setPersonaScope}
+                  onActionChange={setPersonaAction}
+                  onToggleSource={togglePersonaSource}
+                  onGeneratePersona={() => navigate("personaReview")}
+                />
+              ) : null}
+              {screen === "personaReview" ? (
+                <CustomPersonaReviewScreen
+                  personaName={resolvedCustomPersonaName}
+                  personaProfile={customPersona}
+                  selectedSources={selectedPersonaPreview}
+                  sourceConfidence={selectedPersonaConfidence}
+                  activeAction={personaAction}
+                  onBack={() => navigate("personaCreate")}
+                  onEditPersona={() => navigate("personaCreate")}
+                  onOpenReplyCoach={handleOpenReplyCoach}
+                  onStartSimulation={handleStartPersonaSimulation}
+                />
+              ) : null}
+              {screen === "replyCoach" ? (
+                <ReplyCoachScreen
+                  personaName={resolvedCustomPersonaName}
+                  personaProfile={customPersona}
+                  onBack={() => navigate("personaReview")}
+                  onStartSimulation={handleStartPersonaSimulation}
                 />
               ) : null}
               {screen === "live" ? (
                 <LiveSessionScreen
-                  mode={mode}
+                  surfaceClassName={modeSurfaceMap[mode]}
+                  sessionLabel="Live Session"
+                  contextLabel="Scenario context"
                   personaName={currentPersona?.name ?? "Coach"}
                   personaRole={currentPersona?.role ?? "AI Persona"}
                   personaFocus={currentPersona?.focus ?? ""}
@@ -278,12 +555,42 @@ export function ConversationCoachDemo({
                   onEndSession={() => navigate("feedback")}
                 />
               ) : null}
+              {screen === "personaSim" ? (
+                <LiveSessionScreen
+                  surfaceClassName={personaScopeSurfaceMap[personaScope]}
+                  sessionLabel="Persona Simulation"
+                  contextLabel="Persona context"
+                  personaName={resolvedCustomPersonaName}
+                  personaRole={customPersona.role}
+                  personaFocus={customPersona.responseTendencies[0] ?? customPersona.summary}
+                  context={customPersona.simulation.context}
+                  messages={messages}
+                  progress={progress}
+                  hint={currentHint}
+                  hintOpen={hintOpen}
+                  typedMode={typedMode}
+                  reaction={currentReaction}
+                  isComplete={revealedTurns >= customPersona.simulation.transcript.length}
+                  onBack={() => navigate("personaReview")}
+                  onToggleHint={() => setHintOpen((current) => !current)}
+                  onToggleTypedMode={() => setTypedMode((current) => !current)}
+                  onNextResponse={handleNextResponse}
+                  onEndSession={() => navigate("feedback")}
+                />
+              ) : null}
               {screen === "feedback" ? (
                 <FeedbackScreen
-                  mode={mode}
-                  onPracticeAgain={handleStartSession}
+                  feedback={activeFeedback}
+                  title={sessionType === "customPersona" ? "Persona Feedback" : "Session Feedback"}
+                  summary={
+                    sessionType === "customPersona"
+                      ? `Strong calibration for ${resolvedCustomPersonaName} with room to tighten the next response even more.`
+                      : "Strong command of the conversation with room to make the ending even sharper."
+                  }
+                  primaryActionLabel={sessionType === "customPersona" ? "Run Simulation Again" : "Practice Again"}
+                  onPracticeAgain={sessionType === "customPersona" ? handleStartPersonaSimulation : handleStartSession}
                   onOpenAnalytics={() => navigate("analytics")}
-                  onBack={() => navigate("live")}
+                  onBack={() => navigate(sessionType === "customPersona" ? "personaSim" : "live")}
                 />
               ) : null}
               {screen === "analytics" ? <AnalyticsScreen mode={mode} theme={resolvedTheme} /> : null}
@@ -334,25 +641,102 @@ export function ConversationCoachDemo({
 
 function OnboardingScreen({
   onboardingIndex,
+  onboardingStep,
+  mode,
   onAdvance,
   onRetreat,
-  onStart
+  onSelectMode,
+  onShowModeSelection,
+  onReturnToIntro,
+  onContinueToApp,
+  onExplorePrototype
 }: {
   onboardingIndex: number;
+  onboardingStep: OnboardingStep;
+  mode: PracticeMode;
   onAdvance: () => void;
   onRetreat: () => void;
-  onStart: () => void;
+  onSelectMode: (mode: PracticeMode) => void;
+  onShowModeSelection: () => void;
+  onReturnToIntro: () => void;
+  onContinueToApp: () => void;
+  onExplorePrototype: () => void;
 }) {
   const slide = onboardingSlides[onboardingIndex];
+  const selectedScenario = practiceScenarios[mode];
+
+  if (onboardingStep === "modeSelect") {
+    return (
+      <div className="flex h-full flex-col justify-between pb-4">
+        <div>
+          <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+            <p className="text-sm uppercase tracking-[0.24em] text-white/70">choose a mode</p>
+            <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
+              What do you want to rehearse first?
+            </h3>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">
+              Start with the conversation that matters most right now. You can switch modes or build a custom persona anytime.
+            </p>
+          </div>
+          <div className="mt-4 rounded-[30px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/6 dark:shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Starting room</p>
+            <h4 className="mt-4 text-2xl font-semibold leading-snug tracking-[-0.03em] text-slate-950 dark:text-slate-100">
+              Pick one of the four practice modes.
+            </h4>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {scenarioModes.map((item) => {
+                const Icon = modeIconMap[item];
+                const active = item === mode;
+
+                return (
+                  <button
+                    key={item}
+                    onClick={() => onSelectMode(item)}
+                    className={`rounded-[24px] border p-4 text-left transition ${
+                      active
+                        ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                        : `border-white/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,255,255,0.72)),linear-gradient(135deg,var(--tw-gradient-stops))] text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.82),rgba(15,23,42,0.58)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:text-slate-100 ${modeSurfaceMap[item]}`
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <p className="mt-4 text-sm font-semibold">{practiceScenarios[item].shortTitle}</p>
+                    <p className={`mt-1 text-xs leading-5 ${active ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>
+                      {practiceScenarios[item].summary}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected</p>
+              <p className="mt-2 text-base font-semibold text-slate-950 dark:text-slate-100">{selectedScenario.title}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{selectedScenario.description}</p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <button
+            onClick={onContinueToApp}
+            className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
+          >
+            Continue with {selectedScenario.shortTitle}
+          </button>
+          <button
+            onClick={onReturnToIntro}
+            className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">
       <div>
         <div className="rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(37,99,235,0.88),rgba(139,92,246,0.82))] p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[18px] border border-white/15 bg-white/10 backdrop-blur-xl">
-            <WandSparkles className="h-6 w-6" />
-          </div>
-          <p className="mt-5 text-sm uppercase tracking-[0.24em] text-white/70">maya</p>
+          <p className="text-sm uppercase tracking-[0.24em] text-white/70">maya</p>
           <h3 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.04em]">
             Practice conversations before they matter.
           </h3>
@@ -407,12 +791,15 @@ function OnboardingScreen({
       </div>
       <div className="space-y-3">
         <button
-          onClick={onStart}
+          onClick={onShowModeSelection}
           className="w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
         >
           Get Started
         </button>
-        <button className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300">
+        <button
+          onClick={onExplorePrototype}
+          className="w-full rounded-full border border-slate-200/80 bg-white/70 px-5 py-4 text-sm font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+        >
           Explore the prototype
         </button>
       </div>
@@ -424,12 +811,16 @@ function HomeScreen({
   mode,
   progressScore,
   onSelectMode,
+  onContinueCurrentMode,
+  onOpenCustomPersona,
   onOpenScenarios,
   onOpenAnalytics
 }: {
   mode: PracticeMode;
   progressScore: number;
   onSelectMode: (mode: PracticeMode) => void;
+  onContinueCurrentMode: () => void;
+  onOpenCustomPersona: () => void;
   onOpenScenarios: () => void;
   onOpenAnalytics: () => void;
 }) {
@@ -476,12 +867,20 @@ function HomeScreen({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Continue where you left off</p>
             <h4 className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">{practiceScenarios[mode].title}</h4>
           </div>
-          <button
-            onClick={onOpenScenarios}
-            className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
-          >
-            Switch
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onOpenScenarios}
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+            >
+              Switch
+            </button>
+            <button
+              onClick={onContinueCurrentMode}
+              className="rounded-full bg-slate-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.12)] transition hover:bg-slate-800"
+            >
+              Continue
+            </button>
+          </div>
         </div>
         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{practiceScenarios[mode].description}</p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -499,6 +898,26 @@ function HomeScreen({
             See all
           </button>
         </div>
+        <button
+          onClick={onOpenCustomPersona}
+          className="w-full rounded-[28px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(244,247,255,0.78)),linear-gradient(135deg,rgba(59,130,246,0.08),rgba(14,165,233,0.05))] p-5 text-left shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.88),rgba(15,23,42,0.64))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Bring your own persona</p>
+              <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">{customPersonaShowcase.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{customPersonaShowcase.summary}</p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+              <Paperclip className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">Reply coach</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">Live simulation</span>
+            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">{customPersonaShowcase.stat}</span>
+          </div>
+        </button>
         <div className="grid grid-cols-2 gap-3">
           {scenarioModes.map((item) => {
             const Icon = modeIconMap[item];
@@ -507,7 +926,7 @@ function HomeScreen({
               <button
                 key={item}
                 onClick={() => onSelectMode(item)}
-                className={`rounded-[24px] border border-white/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.95),rgba(255,255,255,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] p-4 text-left shadow-[0_18px_50px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.82),rgba(15,23,42,0.56)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${modeSurfaceMap[item]}`}
+                className={`mt-3 rounded-[24px] border border-white/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.95),rgba(255,255,255,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] p-4 text-left shadow-[0_18px_50px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(160deg,rgba(15,23,42,0.82),rgba(15,23,42,0.56)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${modeSurfaceMap[item]}`}
               >
                 <Icon className="h-5 w-5 text-slate-900 dark:text-slate-100" />
                 <p className="mt-4 text-sm font-semibold text-slate-950 dark:text-slate-100">{practiceScenarios[item].shortTitle}</p>
@@ -534,10 +953,12 @@ function HomeScreen({
 
 function ScenarioSelectionScreen({
   activeMode,
-  onSelectMode
+  onSelectMode,
+  onOpenCustomPersona
 }: {
   activeMode: PracticeMode;
   onSelectMode: (mode: PracticeMode) => void;
+  onOpenCustomPersona: () => void;
 }) {
   return (
     <div className="h-full overflow-y-auto pb-24 scrollbar-hidden">
@@ -618,6 +1039,23 @@ function ScenarioSelectionScreen({
           );
         })}
       </div>
+      <button
+        onClick={onOpenCustomPersona}
+        className="mt-4 w-full rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,255,0.9))] p-5 text-left shadow-[0_18px_50px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Specific person or room</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">Create a custom persona</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+              Upload chats, screenshots, exports, or public URLs to build a reply coach or rehearsal partner.
+            </p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+            <Bot className="h-5 w-5" />
+          </div>
+        </div>
+      </button>
     </div>
   );
 }
@@ -632,6 +1070,7 @@ function SessionSetupScreen({
   onPersonaSelect,
   onDifficultySelect,
   onGoalSelect,
+  onOpenCustomPersona,
   onStartSession
 }: {
   mode: PracticeMode;
@@ -643,6 +1082,7 @@ function SessionSetupScreen({
   onPersonaSelect: (value: string) => void;
   onDifficultySelect: (value: string) => void;
   onGoalSelect: (value: string) => void;
+  onOpenCustomPersona: () => void;
   onStartSession: () => void;
 }) {
   const scenario = practiceScenarios[mode];
@@ -683,7 +1123,26 @@ function SessionSetupScreen({
         </div>
       </div>
       <div className="mt-5 space-y-3">
-        <SetupSectionTitle title="AI persona" subtitle="Pick who you want to practice against." />
+        <SetupSectionTitle title="AI persona" subtitle="Pick a preset AI persona or build one from your own context." />
+        <button
+          onClick={onOpenCustomPersona}
+          className="w-full rounded-[24px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,255,0.92))] p-4 text-left shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68))] dark:text-slate-100 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+                <Paperclip className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-950 dark:text-slate-100">Create Persona</p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Use chats, screenshots, exports, or public URLs to build someone specific.
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Custom</span>
+          </div>
+        </button>
         {scenario.personas.map((persona) => (
           <button
             key={persona.id}
@@ -748,8 +1207,811 @@ function SessionSetupScreen({
   );
 }
 
-function LiveSessionScreen({
+function CustomPersonaCreateScreen({
   mode,
+  personaName,
+  personaScope,
+  personaAction,
+  selectedSources,
+  visibleSources,
+  sourcePreview,
+  onBack,
+  onModeChange,
+  onPersonaNameChange,
+  onScopeChange,
+  onActionChange,
+  onToggleSource,
+  onGeneratePersona
+}: {
+  mode: PracticeMode;
+  personaName: string;
+  personaScope: PersonaScope;
+  personaAction: PersonaAction;
+  selectedSources: PersonaSourceType[];
+  visibleSources: typeof personaSourceCatalog;
+  sourcePreview: typeof generatedPersonaProfiles.privatePerson.sources;
+  onBack: () => void;
+  onModeChange: (value: PracticeMode) => void;
+  onPersonaNameChange: (value: string) => void;
+  onScopeChange: (value: PersonaScope) => void;
+  onActionChange: (value: PersonaAction) => void;
+  onToggleSource: (value: PersonaSourceType) => void;
+  onGeneratePersona: () => void;
+}) {
+  const [activeSourceSheet, setActiveSourceSheet] = useState<PersonaSourceType | null>(null);
+  const [pendingRemovalSource, setPendingRemovalSource] = useState<PersonaSourceType | null>(null);
+  const [sourceDrafts, setSourceDrafts] = useState<Record<PersonaSourceType, PersonaSourceDraft>>(personaSourceDraftDefaults);
+  const compactSources = visibleSources.filter((source) => source.type !== "publicUrl");
+  const webSearchSource = visibleSources.find((source) => source.type === "publicUrl");
+
+  function updateSourceDraft(type: PersonaSourceType, nextDraft: Partial<PersonaSourceDraft>) {
+    setSourceDrafts((current) => ({
+      ...current,
+      [type]: {
+        ...current[type],
+        ...nextDraft
+      }
+    }));
+  }
+
+  function handleSourcePress(type: PersonaSourceType) {
+    if (selectedSources.includes(type)) {
+      setPendingRemovalSource(type);
+      return;
+    }
+
+    setActiveSourceSheet(type);
+  }
+
+  function handleConfirmSource(type: PersonaSourceType) {
+    if (!selectedSources.includes(type)) {
+      onToggleSource(type);
+    }
+
+    setActiveSourceSheet(null);
+  }
+
+  return (
+    <div className="relative h-full">
+      <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-400">
+            Custom Persona
+          </div>
+        </div>
+        <div className={`mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.68)),linear-gradient(135deg,var(--tw-gradient-stops))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${personaScopeSurfaceMap[personaScope]}`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Bring your own context</p>
+          <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">Create a persona from real signal.</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+            Upload what you already have, decide whether you want reply coaching or live rehearsal, and inspect the persona before you trust it.
+          </p>
+        </div>
+        <div className="mt-5">
+          <SetupSectionTitle title="Practice mode" subtitle="Choose the room this custom persona should be built for. Opening from a mode keeps that mode selected automatically." />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {scenarioModes.map((item) => (
+              <button
+                key={item}
+                onClick={() => onModeChange(item)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  item === mode
+                    ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                    : "border border-slate-200 bg-white/75 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+                }`}
+              >
+                {practiceScenarios[item].shortTitle}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 rounded-[22px] bg-slate-50/90 p-4 dark:bg-white/6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Selected room</p>
+            <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-slate-100">{practiceScenarios[mode].title}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{practiceScenarios[mode].summary}</p>
+          </div>
+        </div>
+        <div className="mt-5">
+          <SetupSectionTitle title="Persona name" subtitle="Give this person, audience, or rehearsal partner a name." />
+          <input
+            value={personaName}
+            onChange={(event) => onPersonaNameChange(event.target.value)}
+            placeholder={generatedPersonaProfiles[personaScope].name}
+            className="mt-3 w-full rounded-[24px] border border-slate-200 bg-white/85 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300 dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:placeholder:text-slate-500"
+          />
+        </div>
+        <div className="mt-5 space-y-3">
+          <SetupSectionTitle title="Persona scope" subtitle="Decide whether this is a private person, public figure, or presentation audience." />
+          <div className="grid gap-3">
+            {personaScopeOptions.map((option) => {
+              const Icon = personaScopeIconMap[option.id];
+
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => onScopeChange(option.id)}
+                  className={`w-full rounded-[24px] border p-4 text-left transition ${
+                    option.id === personaScope
+                      ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_20px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                      : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${option.id === personaScope ? "bg-white/10" : "border border-white/70 bg-white/80 dark:border-white/10 dark:bg-white/10"}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">{option.eyebrow}</p>
+                      <p className="mt-2 text-base font-semibold">{option.label}</p>
+                      <p className={`mt-1 text-sm leading-6 ${option.id === personaScope ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>{option.description}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-5">
+          <SetupSectionTitle title="Persona action" subtitle="Choose whether you want drafts right away or a live practice room." />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {personaActionOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => onActionChange(option.id)}
+                className={`rounded-[24px] border p-4 text-left transition ${
+                  option.id === personaAction
+                    ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                    : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
+                }`}
+              >
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className={`mt-2 text-xs leading-5 ${option.id === personaAction ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>{option.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5">
+          <SetupSectionTitle title="Source material" subtitle="" />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {compactSources.map((source) => {
+              const Icon = personaSourceIconMap[source.type];
+              const active = selectedSources.includes(source.type);
+
+              return (
+                <button
+                  key={source.type}
+                  onClick={() => handleSourcePress(source.type)}
+                  className={`rounded-[24px] border p-4 text-left transition ${
+                    active
+                      ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                      : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-4 w-4" />
+                    <p className="text-sm font-semibold">{source.label}</p>
+                  </div>
+                  <p className={`mt-2 text-xs leading-5 ${active ? "text-white/72" : "text-slate-600 dark:text-slate-400"}`}>{source.description}</p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${active ? "bg-white/10 text-white/80" : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300"}`}>
+                      {active ? "Attached" : "Tap to add"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {webSearchSource ? (
+            <div className="mt-3">
+              {(() => {
+                const Icon = personaSourceIconMap[webSearchSource.type];
+                const active = selectedSources.includes(webSearchSource.type);
+                const locked = personaScope === "privatePerson";
+
+                return (
+                  <button
+                    onClick={() => {
+                      if (locked) {
+                        return;
+                      }
+
+                      handleSourcePress(webSearchSource.type);
+                    }}
+                    className={`w-full rounded-[24px] border p-4 text-left transition ${
+                      locked
+                        ? "cursor-not-allowed border-slate-200/80 bg-slate-100/80 text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-500"
+                        : active
+                          ? "border-slate-900/10 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-white/10"
+                          : "border-white/70 bg-white/82 text-slate-900 shadow-[0_14px_34px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:text-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${
+                          locked
+                            ? "border border-slate-200 bg-white/70 text-slate-400 dark:border-white/10 dark:bg-white/6 dark:text-slate-500"
+                            : active
+                              ? "bg-white/10"
+                              : "border border-white/70 bg-white/80 dark:border-white/10 dark:bg-white/10"
+                        }`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">{webSearchSource.label}</p>
+                            {locked ? (
+                              <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:bg-white/8 dark:text-slate-400">
+                                Public only
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className={`mt-1 text-sm leading-6 ${
+                            locked
+                              ? "text-slate-400 dark:text-slate-500"
+                              : active
+                                ? "text-white/72"
+                                : "text-slate-600 dark:text-slate-400"
+                          }`}>
+                            {locked
+                              ? "Switch persona scope to Public figure or Audience to add web research."
+                              : webSearchSource.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                          locked
+                            ? "bg-white/70 text-slate-500 dark:bg-white/8 dark:text-slate-400"
+                            : active
+                              ? "bg-white/10 text-white/80"
+                              : "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300"
+                        }`}>
+                          {locked ? "Locked" : active ? "Added" : "Tap to add"}
+                        </span>
+                        {locked ? (
+                          <p className="mt-2 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                            Change scope above
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-5 rounded-[28px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Source status preview</p>
+          <div className="mt-4 space-y-3">
+            {sourcePreview.length > 0 ? (
+              sourcePreview.map((source) => {
+                const Icon = personaSourceIconMap[source.type];
+
+                return (
+                  <div key={source.type} className="flex items-start gap-3 rounded-[22px] bg-slate-50/80 p-4 dark:bg-white/6">
+                    <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:bg-white/10 dark:text-slate-100">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-950 dark:text-slate-100">{source.label}</p>
+                        <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">{source.status}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{source.summary}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{source.detail}</p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-[22px] bg-slate-50/80 p-4 text-sm text-slate-500 dark:bg-white/6 dark:text-slate-400">
+                Select at least one source to generate the persona.
+              </div>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={onGeneratePersona}
+          disabled={selectedSources.length === 0}
+          className="mt-6 w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.18)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Generate Persona
+        </button>
+      </div>
+      <AnimatePresence>
+        {activeSourceSheet ? (
+          <PersonaSourceSheet
+            key={activeSourceSheet}
+            sourceType={activeSourceSheet}
+            draft={sourceDrafts[activeSourceSheet]}
+            onClose={() => setActiveSourceSheet(null)}
+            onDraftChange={(nextDraft) => {
+              updateSourceDraft(activeSourceSheet, nextDraft);
+            }}
+            onConfirm={() => {
+              handleConfirmSource(activeSourceSheet);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {pendingRemovalSource ? (
+          <SourceRemovalSheet
+            key={pendingRemovalSource}
+            sourceType={pendingRemovalSource}
+            onClose={() => setPendingRemovalSource(null)}
+            onConfirm={() => {
+              onToggleSource(pendingRemovalSource);
+              setPendingRemovalSource(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PersonaSourceSheet({
+  sourceType,
+  draft,
+  onClose,
+  onDraftChange,
+  onConfirm
+}: {
+  sourceType: PersonaSourceType;
+  draft: PersonaSourceDraft;
+  onClose: () => void;
+  onDraftChange: (draft: Partial<PersonaSourceDraft>) => void;
+  onConfirm: () => void;
+}) {
+  const copy = personaSourceSheetCopy[sourceType];
+  const Icon = personaSourceIconMap[sourceType];
+  const canConfirm =
+    sourceType === "screenshot" || sourceType === "chatExport"
+      ? draft.attachmentNames.length > 0
+      : draft.primaryText.trim().length > 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute inset-0 z-30 flex items-end justify-center bg-[rgba(15,23,42,0.46)] p-3 backdrop-blur-sm"
+    >
+      <button
+        aria-label="Close source sheet"
+        className="absolute inset-0"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, y: 36, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 44, scale: 0.96 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 flex w-full max-h-full flex-col overflow-hidden rounded-[30px] border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.985))] shadow-[0_30px_80px_rgba(15,23,42,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(10,15,28,0.995),rgba(15,23,42,0.985))]"
+      >
+        <div className="border-b border-slate-200/80 px-5 pb-4 pt-5 dark:border-white/10">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+                <Icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Add source</p>
+                <h4 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">{copy.title}</h4>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{copy.body}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+          {copy.attachmentLabel ? (
+            <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/6">
+              {sourceType === "screenshot" ? (
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{copy.attachmentLabel}</p>
+                      <p className="mt-2 text-sm font-medium text-slate-950 dark:text-slate-100">
+                        {draft.attachmentNames.length > 0
+                          ? `${draft.attachmentNames.length} screenshots attached`
+                          : "No screenshots added yet"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        onDraftChange({
+                          attachmentNames: [
+                            ...draft.attachmentNames,
+                            getMockAttachmentName(sourceType, draft.attachmentNames.length)
+                          ]
+                        })
+                      }
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                    >
+                      {copy.attachmentButton}
+                    </button>
+                  </div>
+                  {draft.attachmentNames.length > 0 ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {draft.attachmentNames.map((attachmentName, index) => (
+                        <button
+                          key={attachmentName}
+                          onClick={() =>
+                            onDraftChange({
+                              attachmentNames: draft.attachmentNames.filter((_, attachmentIndex) => attachmentIndex !== index)
+                            })
+                          }
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                        >
+                          {attachmentName} <span className="text-slate-400">x</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{copy.attachmentLabel}</p>
+                    <p className="mt-2 text-sm font-medium text-slate-950 dark:text-slate-100">
+                      {draft.attachmentNames[0] || "No attachment added yet"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      onDraftChange({
+                        attachmentNames: draft.attachmentNames.length > 0 ? [] : [getMockAttachmentName(sourceType, 0)]
+                      })
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/10 dark:text-slate-200"
+                  >
+                    {draft.attachmentNames.length > 0 ? "Clear" : copy.attachmentButton}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              {copy.fieldLabel}
+            </label>
+            {sourceType === "publicUrl" ? (
+              <input
+                value={draft.primaryText}
+                onChange={(event) => onDraftChange({ primaryText: event.target.value })}
+                placeholder={copy.placeholder}
+                className="mt-2 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300 dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            ) : (
+              <textarea
+                value={draft.primaryText}
+                onChange={(event) => onDraftChange({ primaryText: event.target.value })}
+                placeholder={copy.placeholder}
+                rows={sourceType === "pastedText" ? 6 : 4}
+                className="mt-2 w-full resize-none rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300 dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            )}
+          </div>
+          {copy.noteLabel ? (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                {copy.noteLabel}
+              </label>
+              <textarea
+                value={draft.note}
+                onChange={(event) => onDraftChange({ note: event.target.value })}
+                placeholder={copy.notePlaceholder}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-300 dark:border-white/10 dark:bg-white/6 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            </div>
+          ) : null}
+        </div>
+        <div className="border-t border-slate-200/80 px-5 py-4 dark:border-white/10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={!canConfirm}
+              className="flex-1 rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(15,23,42,0.16)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {copy.saveLabel}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function SourceRemovalSheet({
+  sourceType,
+  onClose,
+  onConfirm
+}: {
+  sourceType: PersonaSourceType;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const Icon = personaSourceIconMap[sourceType];
+  const sourceLabel = sourceType === "publicUrl" ? "Web search" : personaSourceCatalog.find((source) => source.type === sourceType)?.label ?? "Source";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute inset-0 z-40 flex items-end justify-center bg-[rgba(15,23,42,0.42)] p-3 backdrop-blur-sm"
+    >
+      <button aria-label="Close removal confirmation" className="absolute inset-0" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 32, scale: 0.96 }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full rounded-[28px] border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(248,250,252,0.985))] p-5 shadow-[0_24px_60px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(10,15,28,0.995),rgba(15,23,42,0.985))]"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Remove source</p>
+            <h4 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">
+              Remove {sourceLabel}?
+            </h4>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+              This source will be removed from the persona inputs until you add it again.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_36px_rgba(15,23,42,0.16)] transition hover:bg-slate-800"
+          >
+            Remove source
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function CustomPersonaReviewScreen({
+  personaName,
+  personaProfile,
+  selectedSources,
+  sourceConfidence,
+  activeAction,
+  onBack,
+  onEditPersona,
+  onOpenReplyCoach,
+  onStartSimulation
+}: {
+  personaName: string;
+  personaProfile: (typeof generatedPersonaProfiles)[PersonaScope];
+  selectedSources: typeof generatedPersonaProfiles.privatePerson.sources;
+  sourceConfidence: typeof generatedPersonaProfiles.privatePerson.sourceConfidence;
+  activeAction: PersonaAction;
+  onBack: () => void;
+  onEditPersona: () => void;
+  onOpenReplyCoach: () => void;
+  onStartSimulation: () => void;
+}) {
+  return (
+    <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-400">
+          Persona Review
+        </div>
+      </div>
+      <div className={`mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.72)),linear-gradient(135deg,var(--tw-gradient-stops))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${personaScopeSurfaceMap[personaProfile.scope]}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{personaProfile.relationshipLabel}</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">{personaName}</h3>
+            <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">{personaProfile.role}</p>
+          </div>
+          <div className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">
+            {activeAction === "replyCoach" ? "Reply-first" : "Simulation-first"}
+          </div>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-400">{personaProfile.summary}</p>
+      </div>
+      <div className="mt-4 rounded-[28px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Style traits</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {personaProfile.styleTraits.map((trait) => (
+            <span key={trait} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">
+              {trait}
+            </span>
+          ))}
+        </div>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Response tendencies</p>
+        <ul className="mt-3 space-y-2">
+          {personaProfile.responseTendencies.map((item) => (
+            <li key={item} className="text-sm leading-6 text-slate-600 dark:text-slate-400">{item}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-[24px] border border-white/70 bg-white/82 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Common topics</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {personaProfile.commonTopics.map((topic) => (
+              <span key={topic} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                {topic}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[24px] border border-white/70 bg-white/82 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Watch out</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{personaProfile.watchOut}</p>
+        </div>
+      </div>
+      <div className="mt-4 rounded-[28px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Source provenance</p>
+        <div className="mt-4 space-y-3">
+          {selectedSources.map((source) => {
+            const Icon = personaSourceIconMap[source.type];
+            const confidence = sourceConfidence.find((item) => item.type === source.type);
+
+            return (
+              <div key={source.type} className="flex items-start gap-3 rounded-[22px] bg-slate-50/80 p-4 dark:bg-white/6">
+                <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.06)] dark:bg-white/10 dark:text-slate-100">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-950 dark:text-slate-100">{source.label}</p>
+                    {confidence ? (
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                        {confidence.confidence}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{source.summary}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{confidence?.note ?? source.detail}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <button
+          onClick={onOpenReplyCoach}
+          className="rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+        >
+          Get Reply Suggestions
+        </button>
+        <button
+          onClick={onStartSimulation}
+          className="rounded-full border border-slate-200 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/6 dark:text-slate-200"
+        >
+          Start Simulation
+        </button>
+      </div>
+      <button
+        onClick={onEditPersona}
+        className="mt-3 w-full rounded-full border border-slate-200 bg-white/75 px-4 py-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/6 dark:text-slate-200"
+      >
+        Edit Sources
+      </button>
+    </div>
+  );
+}
+
+function ReplyCoachScreen({
+  personaName,
+  personaProfile,
+  onBack,
+  onStartSimulation
+}: {
+  personaName: string;
+  personaProfile: (typeof generatedPersonaProfiles)[PersonaScope];
+  onBack: () => void;
+  onStartSimulation: () => void;
+}) {
+  return (
+    <div className="h-full overflow-y-auto pb-8 scrollbar-hidden">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-600 dark:border-white/10 dark:bg-white/6 dark:text-slate-300"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-400">
+          Reply Coach
+        </div>
+      </div>
+        <div className={`mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.72)),linear-gradient(135deg,var(--tw-gradient-stops))] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${personaScopeSurfaceMap[personaProfile.scope]}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Persona: {personaName}</p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{personaProfile.replyContextLabel}</p>
+            <h3 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-100">{personaProfile.replyContextTitle}</h3>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/85 text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+            <Camera className="h-4 w-4" />
+          </div>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">{personaProfile.replyContextBody}</p>
+        <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-[0_14px_34px_rgba(245,158,11,0.14)]">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Watch out</span>
+          <p className="mt-2">{personaProfile.watchOut}</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-3">
+        {personaProfile.replySuggestions.map((suggestion) => (
+          <div key={suggestion.toneLabel} className="rounded-[28px] border border-white/70 bg-white/82 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{suggestion.toneLabel}</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">{suggestion.bestFor}</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                Draft option
+              </span>
+            </div>
+            <p className="mt-4 rounded-[22px] bg-slate-50/80 p-4 text-sm leading-6 text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:bg-slate-900/80 dark:text-slate-100">
+              {suggestion.draft}
+            </p>
+            <p className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Why this works</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{suggestion.rationale}</p>
+            <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Why it fits this persona</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{suggestion.fitExplanation}</p>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onStartSimulation}
+        className="mt-4 w-full rounded-full bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
+      >
+        Practice This Persona Live
+      </button>
+    </div>
+  );
+}
+
+function LiveSessionScreen({
+  surfaceClassName,
+  sessionLabel,
+  contextLabel,
   personaName,
   personaRole,
   personaFocus,
@@ -767,7 +2029,9 @@ function LiveSessionScreen({
   onNextResponse,
   onEndSession
 }: {
-  mode: PracticeMode;
+  surfaceClassName: string;
+  sessionLabel: string;
+  contextLabel: string;
   personaName: string;
   personaRole: string;
   personaFocus: string;
@@ -814,10 +2078,10 @@ function LiveSessionScreen({
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-400">
-          Live Session
+          {sessionLabel}
         </div>
       </div>
-      <div className={`mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.7)),linear-gradient(135deg,var(--tw-gradient-stops))] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${modeSurfaceMap[mode]}`}>
+      <div className={`mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.7)),linear-gradient(135deg,var(--tw-gradient-stops))] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.62)),linear-gradient(135deg,var(--tw-gradient-stops))] dark:shadow-[0_18px_50px_rgba(2,6,23,0.3)] ${surfaceClassName}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <SpeakingOrb />
@@ -828,7 +2092,7 @@ function LiveSessionScreen({
           </div>
           <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-slate-950">{reaction}</span>
         </div>
-        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Scenario context</p>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{contextLabel}</p>
         <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{context}</p>
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Persona focus: {personaFocus}</p>
         <div className="mt-4 h-2 rounded-full bg-slate-200/80 dark:bg-white/10">
@@ -907,18 +2171,22 @@ function LiveSessionScreen({
 }
 
 function FeedbackScreen({
-  mode,
+  feedback,
+  title,
+  summary,
+  primaryActionLabel,
   onPracticeAgain,
   onOpenAnalytics,
   onBack
 }: {
-  mode: PracticeMode;
+  feedback: SessionFeedback;
+  title: string;
+  summary: string;
+  primaryActionLabel: string;
   onPracticeAgain: () => void;
   onOpenAnalytics: () => void;
   onBack: () => void;
 }) {
-  const scenario = practiceScenarios[mode];
-
   return (
     <div className="h-full overflow-y-auto pb-6 scrollbar-hidden">
       <div className="flex items-center justify-between">
@@ -929,23 +2197,21 @@ function FeedbackScreen({
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-white/10 dark:bg-white/6 dark:text-slate-400">
-          Session Feedback
+          {title}
         </div>
       </div>
       <div className="mt-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(15,23,42,0.82),rgba(30,41,59,0.74))] p-5 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Overall score</p>
-            <h3 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{scenario.feedback.overallScore}</h3>
-            <p className="mt-2 text-sm leading-6 text-white/70">
-              Strong command of the conversation with room to make the ending even sharper.
-            </p>
+            <h3 className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{feedback.overallScore}</h3>
+            <p className="mt-2 text-sm leading-6 text-white/70">{summary}</p>
           </div>
-          <ScoreRing value={scenario.feedback.overallScore} size={92} strokeWidth={9} light />
+          <ScoreRing value={feedback.overallScore} size={92} strokeWidth={9} light />
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3">
-        {scenario.feedback.metrics.map((metric) => (
+        {feedback.metrics.map((metric) => (
           <div key={metric.label} className="rounded-[22px] border border-white/70 bg-white/82 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{metric.label}</p>
             <CountUp value={metric.value} className="mt-3 block text-3xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-100" />
@@ -956,13 +2222,13 @@ function FeedbackScreen({
         ))}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <MiniStatCard label="Filler words" value={String(scenario.feedback.fillerWords)} subtitle="Across the full session" />
-        <MiniStatCard label="Pacing" value={scenario.feedback.pacing} subtitle="Steady and coachable" />
+        <MiniStatCard label="Filler words" value={String(feedback.fillerWords)} subtitle="Across the full session" />
+        <MiniStatCard label="Pacing" value={feedback.pacing} subtitle="Steady and coachable" />
       </div>
       <div className="mt-4 rounded-[24px] border border-white/70 bg-white/82 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Strengths</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {scenario.feedback.strengths.map((item) => (
+          {feedback.strengths.map((item) => (
             <span key={item} className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
               {item}
             </span>
@@ -972,7 +2238,7 @@ function FeedbackScreen({
       <div className="mt-3 rounded-[24px] border border-white/70 bg-white/82 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/6 dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Improvements</p>
         <ul className="mt-3 space-y-2">
-          {scenario.feedback.improvements.map((item) => (
+          {feedback.improvements.map((item) => (
             <li key={item} className="text-sm leading-6 text-slate-600 dark:text-slate-400">
               {item}
             </li>
@@ -981,14 +2247,14 @@ function FeedbackScreen({
       </div>
       <div className="mt-3 rounded-[24px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,249,0.84))] p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(15,23,42,0.68))] dark:shadow-[0_18px_40px_rgba(2,6,23,0.28)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Rewritten response</p>
-        <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{scenario.feedback.rewrittenResponse}</p>
+        <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">{feedback.rewrittenResponse}</p>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           onClick={onPracticeAgain}
           className="rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
         >
-          Practice Again
+          {primaryActionLabel}
         </button>
         <button
           onClick={onOpenAnalytics}

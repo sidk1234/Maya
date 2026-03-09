@@ -1,6 +1,10 @@
 import {
   AppScreen,
+  GeneratedPersonaProfile,
   OnboardingSlide,
+  PersonaAction,
+  PersonaScope,
+  PersonaSourceType,
   PracticeMode,
   PracticeScenario,
   PricingTier,
@@ -253,6 +257,405 @@ export const practiceScenarios: Record<PracticeMode, PracticeScenario> = {
 
 export const scenarioModes = Object.keys(practiceScenarios) as PracticeMode[];
 
+export const personaScopeOptions: Array<{
+  id: PersonaScope;
+  label: string;
+  description: string;
+  eyebrow: string;
+}> = [
+  {
+    id: "privatePerson",
+    label: "Private person",
+    description: "Use your own chats, screenshots, and exports to model someone you actually talk to.",
+    eyebrow: "Private inputs only"
+  },
+  {
+    id: "publicFigure",
+    label: "Public figure",
+    description: "Blend your notes with public interviews, posts, and public-facing writing for sharper prep.",
+    eyebrow: "User data + public web"
+  },
+  {
+    id: "audience",
+    label: "Audience",
+    description: "Create an interviewer, investor, professor, or exec room and rehearse against likely reactions.",
+    eyebrow: "Presentation prep"
+  }
+];
+
+export const personaActionOptions: Array<{
+  id: PersonaAction;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "replyCoach",
+    label: "Reply Coach",
+    description: "Get three tailored drafts and understand why each one fits the person."
+  },
+  {
+    id: "practiceConversation",
+    label: "Practice Conversation",
+    description: "Roleplay the moment live with a persona tuned from your source material."
+  }
+];
+
+export const personaSourceCatalog: Array<{
+  type: PersonaSourceType;
+  label: string;
+  description: string;
+  requiresPublicWeb?: boolean;
+}> = [
+  {
+    type: "pastedText",
+    label: "Pasted chats",
+    description: "Paste texts, emails, DMs, or notes to capture rhythm, pacing, and recurring phrases."
+  },
+  {
+    type: "screenshot",
+    label: "Screenshots",
+    description: "Upload message screenshots, story captures, or presentation snippets to preserve context."
+  },
+  {
+    type: "chatExport",
+    label: "Chat exports",
+    description: "Drop in a longer export when you want the persona to reflect more than one interaction."
+  },
+  {
+    type: "publicUrl",
+    label: "Web search",
+    description: "Search public interviews, posts, company pages, or talk videos for public figures and audiences.",
+    requiresPublicWeb: true
+  }
+];
+
+export const generatedPersonaProfiles: Record<PersonaScope, GeneratedPersonaProfile> = {
+  privatePerson: {
+    id: "alex-rivera",
+    name: "Alex Rivera",
+    role: "Close friend with low-pressure, playful energy",
+    relationshipLabel: "Private person",
+    scope: "privatePerson",
+    summary:
+      "Alex answers in short bursts, likes witty callbacks, and responds best when the message feels specific instead of over-explained.",
+    styleTraits: ["Brief texter", "Playful", "Specific over generic"],
+    commonTopics: ["Weekend plans", "Creative hobbies", "Inside jokes"],
+    responseTendencies: [
+      "Opens with a reaction before adding detail",
+      "Rewards confident but low-pressure messages",
+      "Loses interest when the message feels too polished"
+    ],
+    cautions: ["Do not stack three questions at once", "Avoid sounding like you wrote it with a script open"],
+    sources: [
+      {
+        type: "pastedText",
+        label: "Texts from the last 3 weeks",
+        summary: "Recent back-and-forth about pottery, coffee, and flaky plans.",
+        status: "Parsed",
+        detail: "The model found a pattern of short replies, fast reactions, and playful teasing."
+      },
+      {
+        type: "screenshot",
+        label: "Instagram story screenshot",
+        summary: "Story captioned “Accidentally obsessed now” from a pottery class.",
+        status: "Interpreted",
+        detail: "The model linked the image context to an easy opener instead of a generic compliment."
+      },
+      {
+        type: "chatExport",
+        label: "Exported DM archive",
+        summary: "Longer thread with pacing, emoji restraint, and recurring jokes.",
+        status: "Merged",
+        detail: "Long-form history tightened confidence around tone and timing."
+      }
+    ],
+    sourceConfidence: [
+      { type: "pastedText", label: "Pasted chats", confidence: "High", note: "Strong signal on tone, pacing, and question style." },
+      { type: "screenshot", label: "Screenshots", confidence: "Medium", note: "Useful for moment-specific context and references." },
+      { type: "chatExport", label: "Chat exports", confidence: "High", note: "Best source for consistency over time." }
+    ],
+    watchOut: "Alex tends to pull back when the reply feels too eager or tries to force a plan immediately.",
+    replyContextTitle: "How should I reply to this story?",
+    replyContextBody:
+      "Alex posted a pottery story with the caption “Accidentally obsessed now.” You want to reply in a way that feels natural, playful, and not too thirsty.",
+    replyContextLabel: "Instagram story screenshot",
+    replySuggestions: [
+      {
+        toneLabel: "Playful",
+        bestFor: "Best for chemistry",
+        draft: "This is exactly how pottery gets you. Give it two weeks and you’ll be judging mugs like a sommelier.",
+        rationale: "Keeps the tone light, references the specific story, and gives Alex something easy to riff on.",
+        fitExplanation: "The teasing style matches the dry humor pattern in your chats without sounding try-hard."
+      },
+      {
+        toneLabel: "Warm",
+        bestFor: "Best for low-risk",
+        draft: "Okay this looks very you. If you start making unreasonably good coffee cups, I’m calling dibs.",
+        rationale: "Adds a small compliment without overdoing it and creates a soft opening for continued banter.",
+        fitExplanation: "Alex responds well when you anchor the message in something specific and leave room for a quick comeback."
+      },
+      {
+        toneLabel: "Direct",
+        bestFor: "Best for moving it forward",
+        draft: "Honestly that looks fun. If you go again sometime, I’d be very open to being your extremely average assistant.",
+        rationale: "Turns the story into an invitation without sounding formal or overly planned.",
+        fitExplanation: "This works because Alex’s past replies reward confidence when the ask still feels casual."
+      }
+    ],
+    simulation: {
+      context: "You are trying to reconnect after a few lighter exchanges and see if Alex wants to keep the momentum going.",
+      opening: "Hey, I saw your message. What made you think of me right after the pottery class?",
+      transcript: [
+        {
+          user: "It felt extremely on brand for you, and I figured I should acknowledge the start of your ceramic era.",
+          ai: "That is fair. Ceramic era sounds dramatic enough that I might keep it. What else would be on brand for me then?",
+          reaction: "Amused",
+          hint: "Stay playful, but give one concrete observation so it feels personal."
+        },
+        {
+          user: "Definitely pretending you are casual about it while secretly researching glaze colors at midnight.",
+          ai: "Rude. Accurate, but rude. I respect it though. What about you, what random hobby would catch you way too fast?",
+          reaction: "Leaning In",
+          hint: "Answer directly, then bounce the energy back with a detail that opens the door to plans."
+        }
+      ]
+    },
+    feedback: {
+      overallScore: 90,
+      fillerWords: 2,
+      pacing: "111 wpm",
+      strengths: ["Specific callback to the source", "Playful tone without overpursuing", "Good read of their texting rhythm"],
+      improvements: ["Ask for a plan one beat later", "Keep the second message slightly shorter", "Avoid stacking multiple jokes in one reply"],
+      rewrittenResponse:
+        "This looks extremely on brand for you. Give it a week and you will absolutely have pottery opinions. If you go again, I would happily support your ceramic era from a safe distance.",
+      metrics: [
+        { label: "Tone match", value: 93, tone: "rose" },
+        { label: "Clarity", value: 88, tone: "emerald" },
+        { label: "Warmth", value: 92, tone: "violet" },
+        { label: "Timing", value: 87, tone: "amber" }
+      ]
+    }
+  },
+  publicFigure: {
+    id: "elena-ross",
+    name: "Elena Ross",
+    role: "Seed investor who prefers concise, evidence-heavy answers",
+    relationshipLabel: "Public figure",
+    scope: "publicFigure",
+    summary:
+      "Elena talks in sharp, compressed questions, dislikes bloated setup, and rewards clear conviction backed by one real proof point.",
+    styleTraits: ["Compressed", "Skeptical", "Evidence-first"],
+    commonTopics: ["Traction", "Urgency", "Founder insight"],
+    responseTendencies: [
+      "Pushes for the why-now quickly",
+      "Prefers one metric over three soft claims",
+      "Tests whether the speaker can hold tension under pressure"
+    ],
+    cautions: ["Do not over-contextualize before answering", "Avoid vague growth language with no proof"],
+    sources: [
+      {
+        type: "pastedText",
+        label: "Meeting notes",
+        summary: "Notes from prior investor Q&A and internal prep docs.",
+        status: "Mapped",
+        detail: "Your notes anchored the investor’s interests to traction and founder-market fit."
+      },
+      {
+        type: "publicUrl",
+        label: "Podcast and essays",
+        summary: "Public interviews, essays, and portfolio memo excerpts.",
+        status: "Researched",
+        detail: "The model pulled recurring phrases around urgency, distribution, and signal density."
+      },
+      {
+        type: "chatExport",
+        label: "Email thread export",
+        summary: "Short follow-up emails after the intro meeting.",
+        status: "Blended",
+        detail: "Email cadence reinforced that Elena rewards short, direct responses."
+      }
+    ],
+    sourceConfidence: [
+      { type: "pastedText", label: "Meeting notes", confidence: "Medium", note: "Useful for topic fit, less precise on exact voice." },
+      { type: "publicUrl", label: "Web search", confidence: "High", note: "Strong signal on question style and public communication habits." },
+      { type: "chatExport", label: "Email exports", confidence: "High", note: "Best signal on how she actually responds to you directly." }
+    ],
+    watchOut: "If you sound polished but ungrounded, Elena will likely press harder instead of helping you find the answer.",
+    replyContextTitle: "How do I answer this investor follow-up?",
+    replyContextBody:
+      "Elena replied: “Happy to look. In one sentence, what changed in the last 6 months that makes this urgent now?” You need a crisp answer that earns the next meeting.",
+    replyContextLabel: "Investor follow-up email",
+    replySuggestions: [
+      {
+        toneLabel: "Crisp",
+        bestFor: "Best for strongest signal",
+        draft: "AI-native hiring now creates more practice demand than coaching teams can meet manually, and our usage data shows candidates come back multiple times per week when feedback is instant.",
+        rationale: "Leads with the market change, then lands a usage proof point without drifting into pitch mode.",
+        fitExplanation: "Elena’s public and direct communications consistently reward compressed answers with one credible metric."
+      },
+      {
+        toneLabel: "Founder-conviction",
+        bestFor: "Best for urgency",
+        draft: "Candidates are already using AI to prepare, but almost none of them have a product that simulates the actual conversation pressure, and our retention is proving that gap is real.",
+        rationale: "Keeps the answer thesis-driven while still grounding it in observed behavior.",
+        fitExplanation: "This fits Elena’s style because it frames urgency as an emerging wedge, not just a generic market trend."
+      },
+      {
+        toneLabel: "Measured",
+        bestFor: "Best for low-risk follow-up",
+        draft: "The last six months made two things clear: candidates want instant rehearsal instead of delayed coaching, and our repeat usage suggests that need is persistent rather than novelty-driven.",
+        rationale: "Safer tone, still concise, and avoids overclaiming before the next meeting.",
+        fitExplanation: "This works when you want to sound controlled and credible while matching her preference for clean logic."
+      }
+    ],
+    simulation: {
+      context: "You are rehearsing a five-minute investor conversation with someone who values signal density and direct answers.",
+      opening: "You have one minute. Why does this need to exist now instead of two years from now?",
+      transcript: [
+        {
+          user: "Because candidates already rehearse with AI, but most tools still optimize for generic prep instead of the actual pressure of the room.",
+          ai: "That is directionally fine, but it is still broad. What proof do you have that this pain is strong enough to create repeat behavior?",
+          reaction: "Focused",
+          hint: "Cut the framing by one sentence and answer with one observed metric or repeated behavior."
+        },
+        {
+          user: "Our best users come back multiple times per week before a single high-stakes event, which tells us the value is in iterative rehearsal, not one-off novelty.",
+          ai: "Better. Now tell me why that becomes venture-scale rather than a nice coaching tool with good retention.",
+          reaction: "Testing",
+          hint: "Bridge from user behavior to market expansion without sounding inflated."
+        }
+      ]
+    },
+    feedback: {
+      overallScore: 93,
+      fillerWords: 1,
+      pacing: "122 wpm",
+      strengths: ["Strong compression", "Good investor-language match", "Clear why-now framing"],
+      improvements: ["Add one sharper traction number", "Name the wedge before the expansion path", "Pause after the first sentence"],
+      rewrittenResponse:
+        "The urgency comes from a behavior shift that already happened: candidates now expect instant AI prep, but almost nothing simulates the real conversation pressure. Our repeat usage shows that once people feel the difference, they come back multiple times before a single interview or pitch.",
+      metrics: [
+        { label: "Signal density", value: 95, tone: "teal" },
+        { label: "Clarity", value: 92, tone: "emerald" },
+        { label: "Command", value: 94, tone: "sky" },
+        { label: "Warmth", value: 76, tone: "amber" }
+      ]
+    }
+  },
+  audience: {
+    id: "boardroom-audience",
+    name: "Boardroom Audience",
+    role: "Executive audience looking for clarity, proof, and downside awareness",
+    relationshipLabel: "Audience persona",
+    scope: "audience",
+    summary:
+      "This audience wants crisp narrative structure, explicit tradeoffs, and a clear answer to what changes if they say yes.",
+    styleTraits: ["Outcome-focused", "Risk-aware", "Structured"],
+    commonTopics: ["Business impact", "Execution risk", "Decision clarity"],
+    responseTendencies: [
+      "Interrupts when a point takes too long to land",
+      "Pushes for tradeoffs, not only upside",
+      "Rewards speakers who answer the question before zooming out"
+    ],
+    cautions: ["Do not bury the recommendation", "Avoid sounding vague about downside or sequencing"],
+    sources: [
+      {
+        type: "pastedText",
+        label: "Presentation outline",
+        summary: "Draft deck narrative, opening hook, and planned recommendation.",
+        status: "Mapped",
+        detail: "The model aligned the room’s likely pushback to the structure of your current talk."
+      },
+      {
+        type: "screenshot",
+        label: "Slide screenshots",
+        summary: "Evidence slides, headline choices, and one crowded appendix screen.",
+        status: "Reviewed",
+        detail: "The screenshots exposed where the audience would likely want tighter messaging."
+      },
+      {
+        type: "publicUrl",
+        label: "Company and speaker research",
+        summary: "Public interviews, quarterly letter excerpts, and operating principles.",
+        status: "Researched",
+        detail: "The model learned how this audience frames tradeoffs and asks follow-up questions."
+      }
+    ],
+    sourceConfidence: [
+      { type: "pastedText", label: "Presentation outline", confidence: "High", note: "Best signal on what you are trying to say." },
+      { type: "screenshot", label: "Slide screenshots", confidence: "Medium", note: "Useful for context and likely confusion points." },
+      { type: "publicUrl", label: "Web search", confidence: "High", note: "Strong signal on how the audience talks and evaluates decisions." }
+    ],
+    watchOut: "This room will punish elegant framing if it never resolves into a concrete recommendation and explicit tradeoff.",
+    replyContextTitle: "How should I answer the follow-up after the presentation?",
+    replyContextBody:
+      "After your pitch, the VP emailed: “Can you send the sharper recommendation and the tradeoff we accept if we choose this path?” You want a reply that sounds board-ready.",
+    replyContextLabel: "Presentation follow-up email",
+    replySuggestions: [
+      {
+        toneLabel: "Executive",
+        bestFor: "Best for clarity",
+        draft: "My recommendation is to launch the guided rehearsal product first because it gives us the fastest path to repeat usage and clearer retention signal. The tradeoff is that we delay broader coaching workflows until we validate that core loop.",
+        rationale: "Leads with the recommendation, then names the accepted downside in plain language.",
+        fitExplanation: "That structure matches executive audiences that value decision clarity over exploratory framing."
+      },
+      {
+        toneLabel: "Measured",
+        bestFor: "Best for low-risk follow-up",
+        draft: "I would frame the decision as focus versus breadth: we should prioritize guided rehearsal first because it is the clearest retention wedge, while accepting that adjacent coaching use cases move to a later phase.",
+        rationale: "Keeps the tone calm and strategic while still sounding decisive.",
+        fitExplanation: "This fits audiences that expect clear tradeoffs but dislike overstatement."
+      },
+      {
+        toneLabel: "Direct",
+        bestFor: "Best for conviction",
+        draft: "The sharper recommendation is to bet on rehearsal first. It gives us the strongest repeat-behavior signal now, and the tradeoff is deliberately postponing feature breadth until that core behavior is proven.",
+        rationale: "Condenses the answer to the essential decision logic with no padding.",
+        fitExplanation: "Board-style rooms reward this structure because it answers the actual decision before defending it."
+      }
+    ],
+    simulation: {
+      context: "You are rehearsing a presentation Q&A with a room that wants tighter reasoning and concrete tradeoffs.",
+      opening: "Before I buy into this, what changes materially for the business if your recommendation works?",
+      transcript: [
+        {
+          user: "If it works, we build a repeat behavior around rehearsal instead of a one-time utility, which improves retention and lowers the cost of proving value.",
+          ai: "That is the right shape, but it still sounds abstract. What specific metric or business behavior improves first?",
+          reaction: "Skeptical",
+          hint: "Name the first observable change the room can track after launch."
+        },
+        {
+          user: "The first thing that should move is repeat session frequency per active user, because that tells us the product is becoming part of prep behavior rather than a one-off experiment.",
+          ai: "Better. Now tell me what tradeoff you are accepting by focusing there first.",
+          reaction: "Interested",
+          hint: "State the tradeoff plainly and make it sound deliberate, not accidental."
+        }
+      ]
+    },
+    feedback: {
+      overallScore: 91,
+      fillerWords: 2,
+      pacing: "119 wpm",
+      strengths: ["Strong recommendation framing", "Good audience calibration", "Clearer business language"],
+      improvements: ["Name one leading metric sooner", "Use shorter sentences in the answer open", "Make the tradeoff sound more intentional"],
+      rewrittenResponse:
+        "If this works, the product shifts from a one-off prep tool to a repeat rehearsal habit, and the first signal of that is session frequency per active user. The tradeoff is focus: we delay broader coaching workflows so we can prove that one high-retention behavior first.",
+      metrics: [
+        { label: "Audience fit", value: 94, tone: "teal" },
+        { label: "Clarity", value: 90, tone: "emerald" },
+        { label: "Conviction", value: 89, tone: "sky" },
+        { label: "Tradeoff framing", value: 92, tone: "amber" }
+      ]
+    }
+  }
+};
+
+export const customPersonaShowcase = {
+  title: "Custom Persona Workspace",
+  summary: "Build a persona from chats, screenshots, exports, or public web research and switch between reply coaching and live simulation.",
+  stat: "3 draft replies + live persona simulation"
+};
+
 export const showcaseScreenSummaries: Record<AppScreen, ShowcaseScreenSummary> = {
   onboarding: {
     eyebrow: "Onboarding",
@@ -277,6 +680,30 @@ export const showcaseScreenSummaries: Record<AppScreen, ShowcaseScreenSummary> =
     title: "The setup flow makes personalization feel instant.",
     description:
       "Users can lock in mode, persona, difficulty, and goal with chips and segmented controls that mimic a polished Figma prototype."
+  },
+  personaCreate: {
+    eyebrow: "Create Persona",
+    title: "Build a persona from your own material or approved public-web research.",
+    description:
+      "Scope, goal, and source selection all happen in one polished setup surface so the feature feels like a real product, not a lab tool."
+  },
+  personaReview: {
+    eyebrow: "Persona Review",
+    title: "The generated profile explains how the AI formed its read on the person or audience.",
+    description:
+      "Traits, tendencies, source provenance, and red flags make the persona feel inspectable before the user trusts it."
+  },
+  replyCoach: {
+    eyebrow: "Reply Coach",
+    title: "Reply suggestions are tuned to the persona, not just the raw message.",
+    description:
+      "Each draft comes with a tone label, rationale, and why-it-fits note so the user can choose a response instead of blindly copy-pasting one."
+  },
+  personaSim: {
+    eyebrow: "Persona Simulation",
+    title: "Custom personas can turn directly into a live rehearsal partner.",
+    description:
+      "The same premium chat surface now supports founder prep, audience Q&A, and person-specific conversations with realistic pressure."
   },
   live: {
     eyebrow: "Live Session",
@@ -330,18 +757,18 @@ export const featureHighlights = [
 export const howItWorks = [
   {
     step: "01",
-    title: "Choose a scenario",
-    body: "Pick the exact conversation you want to rehearse, from a behavioral interview to a first date."
+    title: "Choose a mode or persona",
+    body: "Start with a preset scenario or build a custom person or audience from your own material."
   },
   {
     step: "02",
-    title: "Practice with an AI persona",
-    body: "Talk through the moment with a responsive persona tuned for the pressure, tone, and context."
+    title: "Bring the source material",
+    body: "Upload chats, screenshots, exports, and approved public URLs so the persona feels grounded."
   },
   {
     step: "03",
-    title: "Get instant feedback",
-    body: "See how you landed on confidence, clarity, warmth, pacing, and question quality right after the session."
+    title: "Coach or simulate",
+    body: "Get tailored reply drafts or roleplay the conversation live with a responsive persona."
   },
   {
     step: "04",
@@ -354,25 +781,35 @@ export const pricingTiers: PricingTier[] = [
   {
     name: "Free",
     price: "$0",
+    billingPeriod: "/ month",
     description: "For people testing the habit.",
     cta: "Start Free",
     features: ["2 practice modes", "3 sessions per week", "Basic feedback", "Streak tracking"]
   },
   {
     name: "Pro",
-    price: "$29",
+    price: "$3.75",
+    billingPeriod: "/ month",
     description: "For serious interview prep and daily reps.",
     featured: true,
-    cta: "Choose Pro",
+    badge: "Most Popular",
+    priceBadge: "Save 25%",
+    priceNote: "Billed annually at $45/year.\nMonth-to-month is $5/mo.",
+    cta: "Choose Pro Annual",
     features: ["Unlimited sessions", "All 4 practice modes", "Advanced feedback", "Saved personas and goals"]
   },
   {
     name: "Teams",
     price: "$79",
+    billingPeriod: "/ month",
     description: "For coaching cohorts, clubs, and recruiting teams.",
     cta: "Talk to Sales",
     features: ["Shared templates", "Team analytics", "Coach dashboards", "Priority onboarding"]
   }
 ];
 
-export const trustBadges = ["Used for interviews, networking, dating, and presentations", "AI persona feedback in under 60 seconds", "Designed like a polished product demo, not a concept deck"];
+export const trustBadges = [
+  "Bring your own persona from chats, screenshots, and exports",
+  "Public-figure and audience research for presentation prep",
+  "AI reply drafts tailored to how someone actually communicates"
+];

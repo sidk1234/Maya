@@ -1,17 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, AudioLines, Briefcase, Presentation, Users, WandSparkles } from "lucide-react";
+import { ArrowRight, Briefcase, Presentation, Users, WandSparkles } from "lucide-react";
 
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { ConversationCoachDemo } from "@/components/phone/conversation-coach-demo";
 import { buttonStyles } from "@/components/ui/button";
 import { trustBadges } from "@/data/conversation-coach";
 
 const floatingCards = [
-  { label: "Interview mode", icon: Briefcase, position: "-left-16 top-20" },
-  { label: "Real-time AI feedback", icon: WandSparkles, position: "-right-2 top-14" },
-  { label: "Networking practice", icon: Users, position: "-left-20 bottom-24" },
-  { label: "Presentation scoring", icon: Presentation, position: "-right-4 bottom-20", priorityClass: "z-[60]" }
+  { label: "Interview mode", icon: Briefcase, position: "-left-24 top-20" },
+  { label: "Real-time AI feedback", icon: WandSparkles, position: "-right-36 top-14" },
+  { label: "Networking practice", icon: Users, position: "-left-36 bottom-24" },
+  { label: "Presentation scoring", icon: Presentation, position: "-right-40 bottom-20", priorityClass: "z-[60]" }
 ];
 
 export function HeroSection() {
@@ -27,14 +28,16 @@ export function HeroSection() {
           className="relative"
         >
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-4 py-2 text-sm text-slate-600 shadow-[0_10px_40px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-            <AudioLines className="h-4 w-4 text-sky-500" />
+            <span className="rounded-[12px] border border-slate-200/80 bg-white p-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
+              <BrandLogo kind="mark" className="h-6 w-6 rounded-[8px]" alt="" />
+            </span>
             Premium AI conversation rehearsal for moments that matter
           </div>
           <h1 className="max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.04em] text-slate-950 sm:text-6xl lg:text-7xl">
             Practice every <span className="font-display italic">high-stakes</span> conversation before it happens.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-            maya helps you rehearse interviews, networking, dating, and presentations with AI-powered feedback that actually improves how you communicate.
+            maya helps you rehearse interviews, networking, dating, and presentations, then go further by building custom personas from chats, screenshots, exports, and public-web research for the exact person or room you are preparing for.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <a href="#showcase" className={buttonStyles("primary")}>
